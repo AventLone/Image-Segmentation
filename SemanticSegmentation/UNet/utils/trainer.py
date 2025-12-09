@@ -1,15 +1,14 @@
-import torch, wandb, logging
+import torch, wandb, logging, pathlib
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
-from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
-from typing import Callable
 from model.loss import *
 from model import UNet
     
 
 class Trainer:
+    # Hyper parameters
     device = torch.device("cuda", 0)
     batch_size: int = 1
     learning_rate: float = 1e-5
@@ -17,6 +16,8 @@ class Trainer:
     save_checkpoint: bool = True
     img_scale: float = 0.5
     amp: bool = False
+
+    checkpoint_dir = pathlib.Path('./checkpoints/')
 
     @classmethod
     def set_hyper_params(cls, device, batch_size, learning_rate, save_checkpoint, img_scale, amp):
@@ -28,17 +29,19 @@ class Trainer:
         cls.amp = amp
 
     def __init__(self, network):
-        self._network: UNet = torch.compile(network)    # Modern PyTorch (JIT-free) compile path
+        self._network: UNet = torch.compile(network).to(Trainer.device)    # Modern PyTorch (JIT-free) compile path
         self._optimizer = optim.RMSprop(self._network.parameters(), lr=Trainer.learning_rate, weight_decay=1e-8, momentum=0.9)
+        self._criterion = nn.CrossEntropyLoss()
 
         self._scheduler = optim.lr_scheduler.ReduceLROnPlateau(self._optimizer, "max", patience=2)   # Goal: Maximize Dice score
         self._grad_scaler = torch.amp.grad_scaler.GradScaler(device=Trainer.device.type, enabled=Trainer.amp)
-        self._criterion = nn.CrossEntropyLoss()
 
         self._train_dataset = None
         self._val_dataset = None
 
-        self._experiment = wandb.init()
+        self._experiment = wandb.init(project="UNet", reinit=True)
+
+        pathlib.Path(Trainer.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
     def set_dataset(self, train_dataset, val_dataset=None):
         self._train_dataset = train_dataset
@@ -102,11 +105,13 @@ class Trainer:
                     self._experiment.log({"train/loss": loss.item(), "step": global_step, "epoch": epoch})
 
                     # -------- Validation -------- #
-                    if not self._val_dataset:
-                        continue
+                    # if not self._val_dataset:
+                    #     continue
 
-                    division = max(1, n_train // (10 * Trainer.batch_size))
-                    if global_step % division == 0:
+                    # division = max(1, n_train // (10 * Trainer.batch_size))
+                    # if self.val_dataset and global_step % max(1, len(self.train_dataset)//10) == 0:
+                    # if global_step % division == 0:
+                    if self._val_dataset is not None and global_step % max(1, len(self._train_dataset) // 10) == 0:
                         # Histogram logging
                         hist = {f"Weights/{n}": wandb.Histogram(p.data.cpu()) for n, p in self._network.named_parameters()}
                         hist.update({f"Gradients/{n}": wandb.Histogram(p.grad.data.cpu())
@@ -117,25 +122,23 @@ class Trainer:
 
                         pred_mask = probs.argmax(dim=1)[0].float().cpu()
 
-                        self._experiment.log({
-                            "lr": self._optimizer.param_groups[0]["lr"],
-                            "val/dice": val_score,
-                            "image": wandb.Image(images[0].cpu()),
-                            "mask/true": wandb.Image(true_masks[0].float().cpu()),
-                            "mask/pred": wandb.Image(pred_mask),
-                            "step": global_step,
-                            "epoch": epoch,
-                            **hist
-                        })
+                        self._experiment.log({"lr": self._optimizer.param_groups[0]["lr"],
+                                              "val/dice": val_score,
+                                              "image": wandb.Image(images[0].cpu()),
+                                              "mask/true": wandb.Image(true_masks[0].float().cpu()),
+                                              "mask/pred": wandb.Image(pred_mask),
+                                              "step": global_step,
+                                              "epoch": epoch,
+                                              **hist})
 
                         logging.info(f"Validation Dice: {val_score:.4f}")
 
         if Trainer.save_checkpoint:
-            Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
-            torch.save(self._network.state_dict(), str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch + 1)))
+            torch.save(self._network.state_dict(), str(Trainer.checkpoint_dir / 'checkpoint_epoch{}.pth'.format(epoch + 1)))
             logging.info(f'Checkpoint {epoch + 1} saved!')
 
-        dummy = torch.randn(1, 3, 224, 224)
+        dummy = torch.randn(1, 3, 224, 224, device=Trainer.device)
+        self._network.eval()
         torch.onnx.export(self._network, dummy, "model.onnx",
             export_params=True,      # <- this embeds weights inside the ONNX file
             opset_version=17, do_constant_folding=True,
@@ -156,14 +159,12 @@ class Trainer:
             true_mask = F.one_hot(true_mask, self._network.n_classes).permute(0, 3, 1, 2).float()
 
             with torch.no_grad():
-                
                 mask_pred: torch.Tensor = self._network(image)   # Predict the mask
 
-                # convert to one-hot format
+                # Convert to one-hot format
                 if self._network.n_classes == 1:
                     mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
-                    # compute the Dice score
-                    dice_score += dice_coeff(mask_pred, true_mask, reduce_batch_first=False)
+                    dice_score += dice_coeff(mask_pred, true_mask, reduce_batch_first=False)   # Compute the Dice score
                 else:
                     mask_pred = F.one_hot(mask_pred.argmax(dim=1), self._network.n_classes).permute(0, 3, 1, 2).float()
                     # compute the Dice score, ignoring background
