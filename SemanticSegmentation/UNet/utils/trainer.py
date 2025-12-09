@@ -1,0 +1,178 @@
+import torch, wandb, logging
+import torch.nn as nn
+import torch.nn.functional as F
+from torch import optim
+from torch.utils.data import DataLoader, random_split
+from tqdm import tqdm
+from typing import Callable
+from model.loss import *
+from model import UNet
+    
+
+class Trainer:
+    device = torch.device("cuda", 0)
+    batch_size: int = 1
+    learning_rate: float = 1e-5
+    val_percent: float = 0.1
+    save_checkpoint: bool = True
+    img_scale: float = 0.5
+    amp: bool = False
+
+    @classmethod
+    def set_hyper_params(cls, device, batch_size, learning_rate, save_checkpoint, img_scale, amp):
+        cls.device = device
+        cls.batch_size = batch_size
+        cls.learning_rate = learning_rate
+        cls.save_checkpoint = save_checkpoint
+        cls.img_scale = img_scale
+        cls.amp = amp
+
+    def __init__(self, network):
+        self._network: UNet = torch.compile(network)    # Modern PyTorch (JIT-free) compile path
+        self._optimizer = optim.RMSprop(self._network.parameters(), lr=Trainer.learning_rate, weight_decay=1e-8, momentum=0.9)
+
+        self._scheduler = optim.lr_scheduler.ReduceLROnPlateau(self._optimizer, "max", patience=2)   # Goal: Maximize Dice score
+        self._grad_scaler = torch.amp.grad_scaler.GradScaler(device=Trainer.device.type, enabled=Trainer.amp)
+        self._criterion = nn.CrossEntropyLoss()
+
+        self._train_dataset = None
+        self._val_dataset = None
+
+        self._experiment = wandb.init()
+
+    def set_dataset(self, train_dataset, val_dataset=None):
+        self._train_dataset = train_dataset
+        self._val_dataset = val_dataset
+
+    def save_dict(self):
+        torch.save(self._network.state_dict(), 'INTERRUPTED.pth')
+        logging.info('Saved interrupt')
+
+    def run(self, epochs: int):
+        if self._train_dataset is None:
+            raise ValueError("Train dataset is None!")
+
+        n_train = len(self._train_dataset)
+        n_val = len(self._val_dataset) if self._val_dataset else 0
+
+        logging.info(
+            f"Starting training:\n"
+            f"  Epochs:          {epochs}\n"
+            f"  Batch size:      {Trainer.batch_size}\n"
+            f"  Learning rate:   {Trainer.learning_rate}\n"
+            f"  Training size:   {n_train}\n"
+            f"  Validation size: {n_val}\n"
+            f"  Checkpoints:     {Trainer.save_checkpoint}\n"
+            f"  Device:          {Trainer.device.type}\n"
+            f"  Image scaling:   {Trainer.img_scale}\n"
+            f"  Mixed Precision: {Trainer.amp}\n"
+        )
+
+        global_step = 0
+        for epoch in range(epochs):
+            self._network.train()
+            epoch_loss = 0.0
+
+            with tqdm(total=n_train, desc=f"Epoch {epoch+1}/{epochs}", unit="img") as pbar:
+                for batch in self._train_dataset:
+                    images: torch.Tensor = batch["image"].to(Trainer.device, torch.float32)
+                    true_masks: torch.Tensor = batch["mask"].to(Trainer.device, torch.long)
+
+                    # AMP with explicit device type (new API)
+                    with torch.amp.autocast(device_type=Trainer.device.type, enabled=True):
+                        logits = self._network(images)
+
+                        probs = F.softmax(logits, dim=1)
+                        one_hot = F.one_hot(true_masks, self._network.n_classes).permute(0, 3, 1, 2).float()
+
+                        loss: torch.Tensor = self._criterion(logits, true_masks) + dice_loss(probs, one_hot, multiclass=True)
+
+                    self._optimizer.zero_grad(set_to_none=True)
+                    self._grad_scaler.scale(loss).backward()
+                    self._grad_scaler.step(self._optimizer)
+                    self._grad_scaler.update()
+
+                    pbar.update(images.size(0))
+                    pbar.set_postfix(loss=loss.item())
+
+                    global_step += 1
+                    epoch_loss += loss.item()
+
+                    # Logging (cleaner)
+                    self._experiment.log({"train/loss": loss.item(), "step": global_step, "epoch": epoch})
+
+                    # -------- Validation -------- #
+                    if not self._val_dataset:
+                        continue
+
+                    division = max(1, n_train // (10 * Trainer.batch_size))
+                    if global_step % division == 0:
+                        # Histogram logging
+                        hist = {f"Weights/{n}": wandb.Histogram(p.data.cpu()) for n, p in self._network.named_parameters()}
+                        hist.update({f"Gradients/{n}": wandb.Histogram(p.grad.data.cpu())
+                                     for n, p in self._network.named_parameters() if p.grad is not None})
+
+                        val_score = self._evaluate()
+                        self._scheduler.step(val_score)
+
+                        pred_mask = probs.argmax(dim=1)[0].float().cpu()
+
+                        self._experiment.log({
+                            "lr": self._optimizer.param_groups[0]["lr"],
+                            "val/dice": val_score,
+                            "image": wandb.Image(images[0].cpu()),
+                            "mask/true": wandb.Image(true_masks[0].float().cpu()),
+                            "mask/pred": wandb.Image(pred_mask),
+                            "step": global_step,
+                            "epoch": epoch,
+                            **hist
+                        })
+
+                        logging.info(f"Validation Dice: {val_score:.4f}")
+
+        if Trainer.save_checkpoint:
+            Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
+            torch.save(self._network.state_dict(), str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch + 1)))
+            logging.info(f'Checkpoint {epoch + 1} saved!')
+
+        dummy = torch.randn(1, 3, 224, 224)
+        torch.onnx.export(self._network, dummy, "model.onnx",
+            export_params=True,      # <- this embeds weights inside the ONNX file
+            opset_version=17, do_constant_folding=True,
+            input_names=["input"], output_names=["output"]
+        )
+
+
+    def _evaluate(self):
+        self._network.eval()
+
+        val_batches_num = len(self._val_dataset)
+        dice_score = 0
+
+        # Iterate over the validation set
+        for batch in tqdm(self._val_dataset, total=val_batches_num, desc="Validation round", unit="batch", leave=False):
+            image: torch.Tensor = batch["image"].to(device=Trainer.device, dtype=torch.float32)
+            true_mask: torch.Tensor = batch["mask"].to(device=Trainer.device, dtype=torch.long)
+            true_mask = F.one_hot(true_mask, self._network.n_classes).permute(0, 3, 1, 2).float()
+
+            with torch.no_grad():
+                
+                mask_pred: torch.Tensor = self._network(image)   # Predict the mask
+
+                # convert to one-hot format
+                if self._network.n_classes == 1:
+                    mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
+                    # compute the Dice score
+                    dice_score += dice_coeff(mask_pred, true_mask, reduce_batch_first=False)
+                else:
+                    mask_pred = F.one_hot(mask_pred.argmax(dim=1), self._network.n_classes).permute(0, 3, 1, 2).float()
+                    # compute the Dice score, ignoring background
+                    dice_score += multiclass_dice_coeff(mask_pred[:, 1:, ...], true_mask[:, 1:, ...], reduce_batch_first=False)
+
+        self._network.train()
+
+        # Fixes a potential division by zero error
+        if val_batches_num == 0:
+            return dice_score
+        return dice_score / val_batches_num
+    
