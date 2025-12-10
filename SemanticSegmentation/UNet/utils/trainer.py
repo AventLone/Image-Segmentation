@@ -8,7 +8,7 @@ from model import UNet
     
 
 class Trainer:
-    # Hyper parameters
+    #---------- Hyper parameters ----------
     device = torch.device("cuda", 0)
     batch_size: int = 1
     learning_rate: float = 1e-5
@@ -34,7 +34,7 @@ class Trainer:
         self._criterion = nn.CrossEntropyLoss()
 
         self._scheduler = optim.lr_scheduler.ReduceLROnPlateau(self._optimizer, "max", patience=2)   # Goal: Maximize Dice score
-        self._grad_scaler = torch.amp.grad_scaler.GradScaler(device=Trainer.device.type, enabled=Trainer.amp)
+        self._grad_scaler = torch.GradScaler(device=Trainer.device.type, enabled=Trainer.amp)
 
         self._train_dataset = None
         self._val_dataset = None
@@ -82,11 +82,11 @@ class Trainer:
                     true_masks: torch.Tensor = batch["mask"].to(Trainer.device, torch.long)
 
                     # AMP with explicit device type (new API)
-                    with torch.amp.autocast(device_type=Trainer.device.type, enabled=True):
+                    with torch.autocast(device_type=Trainer.device.type, enabled=True):
                         logits = self._network(images)
 
                         probs = F.softmax(logits, dim=1)
-                        one_hot = F.one_hot(true_masks, self._network.n_classes).permute(0, 3, 1, 2).float()
+                        one_hot = F.one_hot(true_masks, self._network.classes_num).permute(0, 3, 1, 2).float()
 
                         loss: torch.Tensor = self._criterion(logits, true_masks) + dice_loss(probs, one_hot, multiclass=True)
 
@@ -105,12 +105,6 @@ class Trainer:
                     self._experiment.log({"train/loss": loss.item(), "step": global_step, "epoch": epoch})
 
                     # -------- Validation -------- #
-                    # if not self._val_dataset:
-                    #     continue
-
-                    # division = max(1, n_train // (10 * Trainer.batch_size))
-                    # if self.val_dataset and global_step % max(1, len(self.train_dataset)//10) == 0:
-                    # if global_step % division == 0:
                     if self._val_dataset is not None and global_step % max(1, len(self._train_dataset) // 10) == 0:
                         # Histogram logging
                         hist = {f"Weights/{n}": wandb.Histogram(p.data.cpu()) for n, p in self._network.named_parameters()}
@@ -156,17 +150,17 @@ class Trainer:
         for batch in tqdm(self._val_dataset, total=val_batches_num, desc="Validation round", unit="batch", leave=False):
             image: torch.Tensor = batch["image"].to(device=Trainer.device, dtype=torch.float32)
             true_mask: torch.Tensor = batch["mask"].to(device=Trainer.device, dtype=torch.long)
-            true_mask = F.one_hot(true_mask, self._network.n_classes).permute(0, 3, 1, 2).float()
+            true_mask = F.one_hot(true_mask, self._network.classes_num).permute(0, 3, 1, 2).float()
 
             with torch.no_grad():
                 mask_pred: torch.Tensor = self._network(image)   # Predict the mask
 
                 # Convert to one-hot format
-                if self._network.n_classes == 1:
+                if self._network.classes_num == 1:
                     mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
                     dice_score += dice_coeff(mask_pred, true_mask, reduce_batch_first=False)   # Compute the Dice score
                 else:
-                    mask_pred = F.one_hot(mask_pred.argmax(dim=1), self._network.n_classes).permute(0, 3, 1, 2).float()
+                    mask_pred = F.one_hot(mask_pred.argmax(dim=1), self._network.classes_num).permute(0, 3, 1, 2).float()
                     # compute the Dice score, ignoring background
                     dice_score += multiclass_dice_coeff(mask_pred[:, 1:, ...], true_mask[:, 1:, ...], reduce_batch_first=False)
 
