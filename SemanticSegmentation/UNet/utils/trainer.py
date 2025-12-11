@@ -5,11 +5,12 @@ from torch import optim
 from tqdm import tqdm
 from model.loss import *
 from model import UNet
-    
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 class Trainer:
     #---------- Hyper parameters ----------
-    device = torch.device("cuda", 0)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu", 0)
     batch_size: int = 1
     learning_rate: float = 1e-5
     val_percent: float = 0.1
@@ -20,8 +21,7 @@ class Trainer:
     checkpoint_dir = pathlib.Path('./checkpoints/')
 
     @classmethod
-    def set_hyper_params(cls, device, batch_size, learning_rate, save_checkpoint, img_scale, amp):
-        cls.device = device
+    def set_hyper_params(cls, batch_size, learning_rate, save_checkpoint, img_scale, amp):
         cls.batch_size = batch_size
         cls.learning_rate = learning_rate
         cls.save_checkpoint = save_checkpoint
@@ -42,6 +42,11 @@ class Trainer:
         self._experiment = wandb.init(project="UNet", reinit=True)
 
         pathlib.Path(Trainer.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+
+        logging.info(f'Using device {Trainer.device}'
+                    f'\t{self._network.channels_num} input channels\n'
+                    f'\t{self._network.classes_num} output channels (classes)\n'
+                    f'\t{"Bilinear" if self._network.bilinear else "Transposed conv"} upscaling')
 
     def set_dataset(self, train_dataset, val_dataset=None):
         self._train_dataset = train_dataset
