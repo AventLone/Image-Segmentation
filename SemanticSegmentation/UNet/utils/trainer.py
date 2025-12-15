@@ -5,8 +5,10 @@ from torch import optim
 from tqdm import tqdm
 from model.loss import *
 from model import UNet
+from .common import logging_handler
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+# logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.DEBUG, handlers=[logging_handler])
 
 class Trainer:
     #---------- Hyper parameters ----------
@@ -16,9 +18,13 @@ class Trainer:
     val_ratio: float = 0.1
     save_checkpoint: bool = True
     img_scale: float = 0.5
+    classes_num: int = 0
     amp: bool = False
+    save_onnx = True
 
-    checkpoint_dir = pathlib.Path('./checkpoints/')
+    checkpoint_dir = './trained_model/checkpoints'
+    onnx_dir = "./trained_model/onnx"
+
 
     # @classmethod
     # def set_hyper_params(cls, batch_size, learning_rate, save_checkpoint, img_scale, amp):
@@ -30,11 +36,15 @@ class Trainer:
 
     @classmethod
     def set_hyper_params(cls, config: dict):
-        cls.batch_size = config["BatchSize"]
-        cls.learning_rate = config["LearningRate"]
+        trainer_config = config["Trainer"]
+
+        cls.batch_size = trainer_config["BatchSize"]
+        cls.learning_rate = trainer_config["LearningRate"]
         # cls.save_checkpoint = config["Save"]
-        cls.img_scale = config["Scale"]
-        cls.amp = config["AMP"]
+        cls.img_scale = trainer_config["Scale"]
+        cls.amp = trainer_config["AMP"]
+
+        cls.classes_num = config["NetWork"]["ClassesNum"]
 
     def __init__(self, network: nn.Module):
         self._network: UNet = torch.compile(network).to(Trainer.device)    # Modern PyTorch (JIT-free) compile path
@@ -53,7 +63,7 @@ class Trainer:
 
         logging.info(f'Using device {Trainer.device}'
                     f'\t{self._network.channels_num} input channels\n'
-                    f'\t{self._network.classes_num} output channels (classes)\n'
+                    f'\t{Trainer.classes_num} output channels (classes)\n'
                     f'\t{"Bilinear" if self._network.bilinear else "Transposed conv"} upscaling')
 
     def set_dataset(self, train_dataset, val_dataset=None):
@@ -99,7 +109,7 @@ class Trainer:
                         logits = self._network(images)
 
                         probs = F.softmax(logits, dim=1)
-                        one_hot = F.one_hot(true_masks, self._network.classes_num).permute(0, 3, 1, 2).float()
+                        one_hot = F.one_hot(true_masks, Trainer.classes_num).permute(0, 3, 1, 2).float()
 
                         loss: torch.Tensor = self._criterion(logits, true_masks) + dice_loss(probs, one_hot, multiclass=True)
 
@@ -141,40 +151,42 @@ class Trainer:
                         logging.info(f"Validation Dice: {val_score:.4f}")
 
             if Trainer.save_checkpoint:
-                torch.save(self._network.state_dict(), str(Trainer.checkpoint_dir / 'checkpoint_epoch{}.pth'.format(epoch + 1)))
+                # torch.save(self._network.state_dict(), str(Trainer.checkpoint_dir / 'checkpoint_epoch{}.pth'.format(epoch + 1)))
+                torch.save(self._network.state_dict(), f"{Trainer.checkpoint_dir}/checkpoint_epoch{epoch + 1}.pth")
                 logging.info(f'Checkpoint {epoch + 1} saved!')
 
-        dummy = torch.randn(1, 3, 224, 224, device=Trainer.device)
-        self._network.eval()
-        torch.onnx.export(self._network, dummy, "model.onnx",
-            export_params=True,      # <- this embeds weights inside the ONNX file
-            opset_version=17, do_constant_folding=True,
-            input_names=["input"], output_names=["output"]
-        )
+        if Trainer.save_onnx:
+            sample_input = torch.randn(1, 3, 224, 224, device=Trainer.device)
+            self._network.eval()
+            torch.onnx.export(self._network, sample_input, f=f"{Trainer.onnx_dir}/model.onnx",
+                export_params=True,      # <- this embeds weights inside the ONNX file
+                opset_version=17, do_constant_folding=True,
+                input_names=["input"], output_names=["output"]
+            )
 
 
     def _evaluate(self):
         self._network.eval()
 
-        val_batches_num = len(self._val_dataset)
+        val_batches_num = len(self._val_dataset) if self._val_dataset is not None else 0
         dice_score = 0
 
         # Iterate over the validation set
         for batch in tqdm(self._val_dataset, total=val_batches_num, desc="Validation round", unit="batch", leave=False):
             image: torch.Tensor = batch["image"].to(device=Trainer.device, dtype=torch.float32)
             true_mask: torch.Tensor = batch["mask"].to(device=Trainer.device, dtype=torch.long)
-            true_mask = F.one_hot(true_mask, self._network.classes_num).permute(0, 3, 1, 2).float()
+            true_mask = F.one_hot(true_mask, Trainer.classes_num).permute(0, 3, 1, 2).float()
 
             with torch.no_grad():
                 mask_pred: torch.Tensor = self._network(image)   # Predict the mask
 
                 # Convert to one-hot format
-                if self._network.classes_num == 1:
+                if Trainer.classes_num == 1:
                     mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
                     dice_score += dice_coeff(mask_pred, true_mask, reduce_batch_first=False)   # Compute the Dice score
                 else:
-                    mask_pred = F.one_hot(mask_pred.argmax(dim=1), self._network.classes_num).permute(0, 3, 1, 2).float()
-                    # compute the Dice score, ignoring background
+                    mask_pred = F.one_hot(mask_pred.argmax(dim=1), Trainer.classes_num).permute(0, 3, 1, 2).float()
+                    # Compute the Dice score, ignoring background
                     dice_score += multiclass_dice_coeff(mask_pred[:, 1:, ...], true_mask[:, 1:, ...], reduce_batch_first=False)
 
         self._network.train()
