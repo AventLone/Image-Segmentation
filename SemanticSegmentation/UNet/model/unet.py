@@ -2,14 +2,16 @@ from .components import *
 
 
 class UNet(nn.Module):
-    """ Full assembly of the parts to form the complete network """
-    def __init__(self, n_channels, n_classes, bilinear=False):
-        super(UNet, self).__init__()
-        self.channels_num = n_channels
-        self.classes_num = n_classes
-        self.bilinear = bilinear
+    """
+    Full assembly of the parts to form the complete network
+    """
+    def __init__(self, config: dict):
+        super().__init__()
+        channels_num = config["ChannelsNum"]
+        classes_num = config["ClassesNum"]
+        bilinear = config["Bilinear"]
 
-        self.inc = DoubleConv(n_channels, 64)
+        self.inc = DoubleConv(channels_num, 64)
         self.down1 = Downsample(64, 128)
         self.down2 = Downsample(128, 256)
         self.down3 = Downsample(256, 512)
@@ -19,7 +21,7 @@ class UNet(nn.Module):
         self.up2 = Upsample(512, 256 // factor, bilinear)
         self.up3 = Upsample(256, 128 // factor, bilinear)
         self.up4 = Upsample(128, 64, bilinear)
-        self.outc = OutConv(64, n_classes)
+        self.outc = OutConv(64, classes_num)
 
     def forward(self, x):
         x1 = self.inc(x)

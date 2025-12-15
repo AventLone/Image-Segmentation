@@ -20,15 +20,23 @@ class Trainer:
 
     checkpoint_dir = pathlib.Path('./checkpoints/')
 
-    @classmethod
-    def set_hyper_params(cls, batch_size, learning_rate, save_checkpoint, img_scale, amp):
-        cls.batch_size = batch_size
-        cls.learning_rate = learning_rate
-        cls.save_checkpoint = save_checkpoint
-        cls.img_scale = img_scale
-        cls.amp = amp
+    # @classmethod
+    # def set_hyper_params(cls, batch_size, learning_rate, save_checkpoint, img_scale, amp):
+    #     cls.batch_size = batch_size
+    #     cls.learning_rate = learning_rate
+    #     cls.save_checkpoint = save_checkpoint
+    #     cls.img_scale = img_scale
+    #     cls.amp = amp
 
-    def __init__(self, network):
+    @classmethod
+    def set_hyper_params(cls, config: dict):
+        cls.batch_size = config["BatchSize"]
+        cls.learning_rate = config["LearningRate"]
+        # cls.save_checkpoint = config["Save"]
+        cls.img_scale = config["Scale"]
+        cls.amp = config["AMP"]
+
+    def __init__(self, network: nn.Module):
         self._network: UNet = torch.compile(network).to(Trainer.device)    # Modern PyTorch (JIT-free) compile path
         self._optimizer = optim.RMSprop(self._network.parameters(), lr=Trainer.learning_rate, weight_decay=1e-8, momentum=0.9)
         self._criterion = nn.CrossEntropyLoss()
@@ -132,9 +140,9 @@ class Trainer:
 
                         logging.info(f"Validation Dice: {val_score:.4f}")
 
-        if Trainer.save_checkpoint:
-            torch.save(self._network.state_dict(), str(Trainer.checkpoint_dir / 'checkpoint_epoch{}.pth'.format(epoch + 1)))
-            logging.info(f'Checkpoint {epoch + 1} saved!')
+            if Trainer.save_checkpoint:
+                torch.save(self._network.state_dict(), str(Trainer.checkpoint_dir / 'checkpoint_epoch{}.pth'.format(epoch + 1)))
+                logging.info(f'Checkpoint {epoch + 1} saved!')
 
         dummy = torch.randn(1, 3, 224, 224, device=Trainer.device)
         self._network.eval()
