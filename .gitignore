@@ -3,6 +3,8 @@ data/
 install/
 build/
 log/
+wandb/
+__pycache__/
 
 meshs/
 

@@ -2,34 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# import torch
-# import torchvision.models as models
-
-# # load a standard ResNet (e.g., ResNet-50)
-# model = models.resnet50(pretrained=True)
-
-# # inspect
-# print(model)
-
-# class Residual(nn.Module):
-#     def __init__(self, input_channels, num_channels, use_1x1conv=False, strides=1):
-#         super().__init__()
-#         self.conv1 = nn.Conv2d(input_channels, num_channels, kernel_size=3, padding=1, stride=strides)
-#         self.conv2 = nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1)
-#         if use_1x1conv:
-#             self.conv3 = nn.Conv2d(input_channels, num_channels, kernel_size=1, stride=strides)
-#         else:
-#             self.conv3 = None
-#         self.bn1 = nn.BatchNorm2d(num_channels)
-#         self.bn2 = nn.BatchNorm2d(num_channels)
-
-#     def forward(self, X):
-#         Y = F.relu(self.bn1(self.conv1(X)))
-#         Y = self.bn2(self.conv2(Y))
-#         if self.conv3:
-#             X = self.conv3(X)
-#         Y += X
-#         return F.relu(Y)
     
 class Residual(nn.Module):
     def __init__(self, in_channels, out_channels) -> None:
@@ -63,30 +35,44 @@ class Test(nn.Module):
         return self.block(x)
     
 
-from PIL import Image
+class MLP(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(28 * 28, 256),
+            nn.ReLU(),
+            nn.Linear(256, 10)
+        )
 
-# convert to tensor (PyTorch)
-import torchvision.transforms as torch_trans
-# from torchvision import transforms, transforms.functional as F
-from torchvision.transforms.functional import to_tensor, to_pil_image
+    def forward(self, x):
+        return self.net(x)
+    
+
+# from PIL import Image
+
+# # convert to tensor (PyTorch)
+# import torchvision.transforms as torch_trans
+# # from torchvision import transforms, transforms.functional as F
+# from torchvision.transforms.functional import to_tensor, to_pil_image
 
 
-# tensor_convertor = torch_trans.ToTensor()
-# to_pil = torch_trans.ToPILImage()
+# # tensor_convertor = torch_trans.ToTensor()
+# # to_pil = torch_trans.ToPILImage()
 
-img = Image.open("/home/avent/Pictures/gargantua-black-3840x2160-9621.jpg")
+# img = Image.open("/home/avent/Pictures/gargantua-black-3840x2160-9621.jpg")
 
-img_tensor = to_tensor(img)
-print(img_tensor.shape)
-img_tensor = img_tensor.unsqueeze(0)
-print(img_tensor.size())
+# img_tensor = to_tensor(img)
+# print(img_tensor.shape)
+# img_tensor = img_tensor.unsqueeze(0)
+# print(img_tensor.size())
 
-net = Test(in_channels=3, out_channels=3)
+# net = Test(in_channels=3, out_channels=3)
 
-result: torch.Tensor = net(img_tensor)
-result = result.squeeze(0)
+# result: torch.Tensor = net(img_tensor)
+# result = result.squeeze(0)
 
-print(result.shape)
+# print(result.shape)
 
-result_img: Image.Image = to_pil_image(result)
-result_img.save("./result.png")
+# result_img: Image.Image = to_pil_image(result)
+# result_img.save("./result.png")

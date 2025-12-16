@@ -1,24 +1,31 @@
 import logging, torch, sys
-from model import UNet
+from utils.load_dataset import get_train_dataset, get_val_dataset
 from utils import Trainer
-from utils.common import load_config
+from utils.common import load_config, logging_handler
+from model.resnet import MLP
 
+logging.basicConfig(level=logging.INFO, handlers=[logging_handler])
 
 
 if __name__ == '__main__':
-    # Change here to adapt to your data
-    # n_channels=3 for RGB images
-    # n_classes is the number of probabilities you want to get per pixel
-
+    # 1. Load configurations for the trainer and neural network.
     config = load_config("./config/trainer_params.yaml")
-    Trainer.set_hyper_params(config["Trainer"])
+    Trainer.set_hyper_params(config)
+
+    # 2. Prepare dataset.
+    dataset_config = config["Dataset"]
+    train_dataset = get_train_dataset(dataset_config["TrainDir"], dataset_config["BatchSize"])
+    val_dataset = get_val_dataset(dataset_config["ValDir"], dataset_config["BatchSize"])    
 
     # if args.load:
     #     net.load_state_dict(torch.load(args.load, map_location=device))
     #     logging.info(f'Model loaded from {args.load}')
 
-    net = UNet(config["Network"])
-    trainer = Trainer(network=net)
+    # 3. Instantiate the neural network and trainer.
+    net = MLP()
+    trainer = Trainer(network=net, project_name="MNIST")
+
+    # 4. Train the network.
     try:
         trainer.run(epochs=50)
     except KeyboardInterrupt:

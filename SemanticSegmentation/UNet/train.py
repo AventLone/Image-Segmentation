@@ -1,15 +1,20 @@
-import argparse, logging, torch, sys
+import logging, torch, sys
 from model import UNet
 from utils import Trainer
-from utils.common import load_config
+from utils.common import load_config, logging_handler
 
+logging.basicConfig(level=logging.DEBUG, handlers=[logging_handler])
 
 
 if __name__ == '__main__':
+
+    # 1. Prepare datasets
+
+
     # Change here to adapt to your data
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
-
+    
     config = load_config("./config/trainer_params.yaml")
     Trainer.set_hyper_params(config["Trainer"])
 
