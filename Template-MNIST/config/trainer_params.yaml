@@ -1,0 +1,11 @@
+Network:
+    ChannelsNum: 3
+    ClassesNum: 20
+    Bilinear: False   # Use bilinear upsampling
+
+Trainer:
+    BatchSize: 5
+    LearningRate: 0.01
+    Scale: 0.5   # Downscaling factor of the images
+    ValidationRatio: 0.1
+    AMP: True    # Use mixed precision
