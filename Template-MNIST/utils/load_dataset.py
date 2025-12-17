@@ -1,5 +1,6 @@
 from PIL import Image
 from pathlib import Path
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
@@ -21,17 +22,19 @@ class MnistDadaset(Dataset):
         self.labels = []
         
         # Iterate through each class folder (0-9)
-        for class_label in range(10):
-            class_dir = self.root_dir / str(class_label)
+        for i in range(10):
+            class_dir = self.root_dir / str(i)
             
             if not class_dir.exists():
                 continue
-                
+            
+            label = torch.zeros(10, dtype=torch.float16)
+            label[i] = 1.0
             # Get all image files in the class folder
             for img_file in class_dir.iterdir():
                 if img_file.suffix.lower() in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff']:
                     self.image_paths.append(img_file)
-                    self.labels.append(class_label)
+                    self.labels.append(label)
 
     
     def __len__(self):

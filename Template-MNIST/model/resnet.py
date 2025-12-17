@@ -46,7 +46,7 @@ class MLP(nn.Module):
         )
 
     def forward(self, x):
-        return self.net(x)
+        return F.softmax(self.net(x), dim=1)
     
 
 # from PIL import Image

@@ -35,7 +35,7 @@ class Trainer:
     def __init__(self, network: nn.Module, project_name: str):
         self._network: nn.Module = torch.compile(network).to(Trainer.device)    # type: ignore # Modern PyTorch (JIT-free) compile path
         self._optimizer = optim.RMSprop(self._network.parameters(), lr=Trainer.learning_rate, weight_decay=1e-8, momentum=0.9)
-        self._criterion = nn.CrossEntropyLoss()
+        self._loss_func = nn.CrossEntropyLoss(reduction="none")
 
         self._scheduler = optim.lr_scheduler.ReduceLROnPlateau(self._optimizer, "max", patience=2)   # Goal: Maximize Dice score
         self._grad_scaler = torch.GradScaler(device=Trainer.device.type, enabled=Trainer.amp)
@@ -88,51 +88,43 @@ class Trainer:
             epoch_loss = 0.0
 
             with tqdm(total=n_train, desc=f"Epoch {epoch + 1}/{epochs}", unit="img") as pbar:
-                for data, label in self._train_dataset:
-                    data: torch.Tensor = data.to(Trainer.device)
-                    label: torch.Tensor = label.to(Trainer.device)
+                for x, y in self._train_dataset:
+                    x: torch.Tensor = x.to(Trainer.device)
+                    y: torch.Tensor = y.to(Trainer.device)
 
                     # AMP with explicit device type (new API)
                     with torch.autocast(device_type=Trainer.device.type, enabled=True):
-                        logits = self._network(data)
-                        loss: torch.Tensor = F.cross_entropy(logits, label)
-                    self._optimizer.zero_grad(set_to_none=True)
-                    self._grad_scaler.scale(loss).backward()
-                    self._grad_scaler.step(self._optimizer)
-                    self._grad_scaler.update()
+                        y_hat = self._network(x)
+                        # loss: torch.Tensor = F.cross_entropy(y_hat, y)
+                        loss: torch.Tensor = self._loss_func(y_hat, y)
+                    self._optimizer.zero_grad()
+                    # self._grad_scaler.scale(loss).backward()
+                    # self._grad_scaler.step(self._optimizer)
+                    # self._grad_scaler.update()
+                    loss.mean().backward()
+                    self._optimizer.step()
 
-                    pbar.update(data.size(0))
-                    pbar.set_postfix(loss=loss.item())
+                    # pbar.update(x.size(0))
+                    pbar.update(1)
+                    pbar.set_postfix(loss=loss.sum().item())
 
                     global_step += 1
-                    epoch_loss += loss.item()
+                    epoch_loss += loss.sum().item()
 
                     # Logging (cleaner)
-                    self._wandb_logger.log({"train/loss": loss.item(), "step": global_step, "epoch": epoch})
+                    self._wandb_logger.log({"train/loss": loss.sum().item(), "step": global_step, "epoch": epoch})
 
                     # -------- Validation -------- #
                     if self._val_dataset is not None and global_step % max(1, len(self._train_dataset) // 10) == 0:
-                        # Histogram logging
-                        # hist = {f"Weights/{n}": wandb.Histogram(p.data.cpu()) for n, p in self._network.named_parameters()}
-                        # hist.update({f"Gradients/{n}": wandb.Histogram(p.grad.data.cpu())
-                        #              for n, p in self._network.named_parameters() if p.grad is not None})
-
                         val_score = self._evaluate()
-                        self._scheduler.step(val_score)
-
+                        # self._scheduler.step(val_score)
                         # self._wandb_logger.log({"lr": self._optimizer.param_groups[0]["lr"],
                         #                         "val/dice": val_score,
-                        #                         "image": wandb.Image(data[0].cpu()),
+                        #                         # "image": wandb.Image(x[0].cpu()),
                         #                         "step": global_step,
-                        #                         "epoch": epoch,
-                        #                         **hist})
-                        self._wandb_logger.log({"lr": self._optimizer.param_groups[0]["lr"],
-                                                "val/dice": val_score,
-                                                "image": wandb.Image(data[0].cpu()),
-                                                "step": global_step,
-                                                "epoch": epoch})
+                        #                         "epoch": epoch})
 
-                        logging.info(f"Validation Dice: {val_score:.4f}")
+                        # logging.info(f"Validation Dice: {val_score:.4f}")
 
             if Trainer.save_checkpoint:
                 torch.save(self._network.state_dict(), f"{Trainer.checkpoint_dir}/checkpoint_epoch{epoch + 1}.pth")
@@ -158,7 +150,10 @@ class Trainer:
         dice_score = 0
 
         # Iterate over the validation set
-        for batch in tqdm(self._val_dataset, total=val_batches_num, desc="Validation round", unit="batch", leave=False):
+        # for batch in tqdm(self._val_dataset, total=val_batches_num, desc="Validation round", unit="batch", leave=False):
+        if self._val_dataset is None:
+            return
+        for batch in self._val_dataset:
             data: torch.Tensor = batch[0].to(device=Trainer.device)
             label: torch.Tensor = batch[1].to(device=Trainer.device)
             # image: torch.Tensor = batch["image"].to(device=Trainer.device, dtype=torch.float32)

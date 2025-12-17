@@ -29,7 +29,8 @@ img = Image.open("./data/dataset/train/2/4911.png")
 img_tensor: torch.Tensor = preprocess(img).to(device)   # type: ignore
 logging.info(f"input shape is {img_tensor.shape}")
 
-logits: torch.Tensor = F.softmax(net(img_tensor), dim=1)
+# logits: torch.Tensor = F.softmax(net(img_tensor), dim=1)
+logits: torch.Tensor = net(img_tensor)
 logits = logits.cpu()
 
 logging.info(f"Logits is {logits}")
