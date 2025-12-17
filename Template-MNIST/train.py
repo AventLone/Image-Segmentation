@@ -4,6 +4,7 @@ from utils import Trainer
 from utils.common import load_config, logging_handler
 from model.resnet import MLP
 
+
 logging.basicConfig(level=logging.INFO, handlers=[logging_handler])
 
 

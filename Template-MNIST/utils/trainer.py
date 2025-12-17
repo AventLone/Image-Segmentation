@@ -18,6 +18,7 @@ class Trainer:
 
     checkpoint_dir = "./data/trained_model/checkpoints"
     onnx_dir = "./data/trained_model/onnx"
+    pth_dir = "./data/trained_model/pth"
 
     @classmethod
     def set_hyper_params(cls, config: dict):
@@ -137,6 +138,9 @@ class Trainer:
                 torch.save(self._network.state_dict(), f"{Trainer.checkpoint_dir}/checkpoint_epoch{epoch + 1}.pth")
                 logging.info(f'Checkpoint {epoch + 1} saved!')
 
+        self._wandb_logger.finish()
+
+        torch.save(self._network.state_dict(), f"{Trainer.pth_dir}/model.pth")
         if Trainer.save_onnx:
             sample_input = torch.randn(1, 1, 32, 32, device=Trainer.device)
             self._network.eval()
@@ -145,7 +149,6 @@ class Trainer:
                 opset_version=18, do_constant_folding=True,
                 input_names=["input"], output_names=["output"]
             )
-        self._wandb_logger.finish()
 
 
     def _evaluate(self):
