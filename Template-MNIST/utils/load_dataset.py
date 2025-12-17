@@ -55,7 +55,7 @@ class MnistDadaset(Dataset):
 # Define separate transforms for training and validation/test
 transform_train = transforms.Compose([
     # Resize and padding (if images vary in size)
-    # transforms.Resize((32, 32)),  # Slightly larger than MNIST's 28x28
+    transforms.Resize((32, 32)),  # Slightly larger than MNIST's 28x28
     # transforms.RandomCrop(28),  # Random crop back to 28x28
     
     # Geometric transformations
@@ -75,7 +75,7 @@ transform_train = transforms.Compose([
 
 # Simple transforms for validation/test (no augmentation)
 transform_val = transforms.Compose([
-    # transforms.Resize((28, 28)),
+    transforms.Resize((32, 32)),
     transforms.ToTensor(),
     transforms.Normalize((0.1307,), (0.3081,))
 ])

@@ -24,10 +24,11 @@ if __name__ == '__main__':
     # 3. Instantiate the neural network and trainer.
     net = MLP()
     trainer = Trainer(network=net, project_name="MNIST")
+    trainer.set_dataset(train_dataset=train_dataset, val_dataset=val_dataset)
 
     # 4. Train the network.
     try:
-        trainer.run(epochs=50)
+        trainer.run(epochs=3)
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         logging.info('Saved interrupt')

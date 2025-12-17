@@ -5,7 +5,7 @@ import wandb
 # Start a new wandb run to track this script.
 run = wandb.init(
     # Set the wandb entity where your project will be logged (generally your team name).
-    entity="piggy-stoic-beijing-university-of-chemical-technology",
+    # entity="piggy-stoic-beijing-university-of-chemical-technology",
     # Set the wandb project where this run will be logged.
     project="my-awesome-project",
     # Track hyperparameters and run metadata.
