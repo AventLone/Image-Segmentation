@@ -1,15 +1,16 @@
 Network:
     ChannelsNum: 3
-    ClassesNum: 20
+    ClassesNum: 10
     Bilinear: False   # Use bilinear upsampling
 
 Trainer:
-    LearningRate: 0.01
+    LearningRate: 1.0e-3
     Scale: 0.5   # Downscaling factor of the images
-    ValidationRatio: 0.1
     AMP: True    # Use mixed precision
+    SaveONNX: False
 
 Dataset:
     TrainDir: "/home/avent/Desktop/PythonProjects/Image-Segmentation/Template-MNIST/data/dataset/train"
-    ValDir: "/home/avent/Desktop/PythonProjects/Image-Segmentation/Template-MNIST/data/dataset/test"
-    BatchSize: 5
+    TestDir: "/home/avent/Desktop/PythonProjects/Image-Segmentation/Template-MNIST/data/dataset/test"
+    BatchSize: 100
+    ValidationRatio: 0.1

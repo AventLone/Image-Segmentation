@@ -17,6 +17,7 @@ meshs/
 .idea/
 cmake-build-release/
 
+*.pt
 *.pth
 *.onnx
 

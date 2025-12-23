@@ -1,7 +1,7 @@
 from PIL import Image
 from pathlib import Path
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms
 
 
@@ -15,6 +15,8 @@ class MnistDadaset(Dataset):
         super().__init__()
 
         self.root_dir = Path(root_dir)
+        if not self.root_dir.exists():
+            raise FileNotFoundError(f"root_dir does not exist: {self.root_dir}")
         self.transform = transform
         
         # Collect all image paths and corresponding labels
@@ -28,7 +30,7 @@ class MnistDadaset(Dataset):
             if not class_dir.exists():
                 continue
             
-            label = torch.zeros(10, dtype=torch.float16)
+            label = torch.zeros(10, dtype=torch.float32)
             label[i] = 1.0
             # Get all image files in the class folder
             for img_file in class_dir.iterdir():
@@ -49,7 +51,7 @@ class MnistDadaset(Dataset):
         if image.mode != 'L':
             image = image.convert('L')
         
-        image = self.transform(image)   # Apply transforms  
+        image = self.transform(image)   # Apply transforms
         label = self.labels[idx]        # Get label
         
         return image, label
@@ -70,17 +72,13 @@ transform_train = transforms.Compose([
     
     # Elastic deformations (simulates handwriting variations)
     transforms.RandomApply([transforms.ElasticTransform(alpha=30.0)], p=0.3),
-    
-    # Standard transformations
-    transforms.ToTensor(),
-    transforms.Normalize((0.1307,), (0.3081,))  # MNIST mean and std
+    transforms.ToTensor()
 ])
 
 # Simple transforms for validation/test (no augmentation)
 transform_val = transforms.Compose([
     transforms.Resize((32, 32)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.1307,), (0.3081,))
+    transforms.ToTensor()
 ])
 
 
@@ -91,3 +89,16 @@ def get_train_dataset(dir_path: str, batch_size: int, shuffle=True, num_workers=
 def get_val_dataset(dir_path: str, batch_size: int, shuffle=True, num_workers=4, pin_memory=True):
     dataset = MnistDadaset(dir_path, transform_val)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+
+def get_datasets(dir_path: str, batch_size: int, val_ratio: float, shuffle=True, num_workers=3, pin_memory=True):
+    dataset = MnistDadaset(dir_path, transform_train)
+    if val_ratio != 0.0:
+        dataset_size = len(dataset)
+        val_size = int(val_ratio * dataset_size)
+        train_size = dataset_size - val_size
+        train_dataset, val_datset = random_split(dataset, [train_size, val_size])
+        return (DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory),
+                DataLoader(val_datset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory))
+    else:
+        return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+    
