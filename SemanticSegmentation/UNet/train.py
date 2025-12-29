@@ -3,7 +3,7 @@ from model import UNet
 from utils import Trainer
 from utils.common import load_config, logging_handler
 
-logging.basicConfig(level=logging.DEBUG, handlers=[logging_handler])
+logging.basicConfig(level=logging.INFO, handlers=[logging_handler])
 
 
 if __name__ == '__main__':

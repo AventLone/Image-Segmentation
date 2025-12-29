@@ -1,5 +1,5 @@
 import logging, torch, sys
-from utils.load_dataset import get_train_dataset, get_val_dataset, get_datasets
+from utils.load_dataset import get_dataloaders
 from utils import Trainer
 from utils.common import load_config, logging_handler
 from model.resnet import MLP, SmallCNN, ResNet
@@ -17,7 +17,7 @@ if __name__ == '__main__':
 
     # 2. Prepare dataset.
     dataset_config = config["Dataset"]
-    train_loader, val_loader = get_datasets(dir_path=dataset_config["TrainDir"], 
+    train_loader, val_loader = get_dataloaders(dir_path=dataset_config["TrainDir"], 
                                             batch_size=dataset_config["BatchSize"], 
                                             val_ratio=dataset_config["ValidationRatio"])
 
