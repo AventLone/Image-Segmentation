@@ -2,7 +2,7 @@ import logging, torch, sys
 from utils.load_dataset import get_dataloaders
 from utils import Trainer
 from utils.common import load_config, logging_handler
-from model.resnet import MLP, SmallCNN, ResNet
+from model.resnet import ResNet
 
 if __name__ == '__main__':
     torch.backends.cudnn.deterministic = False   # Set True for full determinism (slower)
