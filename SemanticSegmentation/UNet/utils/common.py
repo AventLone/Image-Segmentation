@@ -5,6 +5,14 @@ def load_config(yaml_file_path: str) -> dict:
         return yaml.safe_load(file)
     
 class ColorFormatter(logging.Formatter):
+    ICONS = {
+        logging.INFO: "💡",
+        logging.WARNING: "⚠️",
+        logging.ERROR: "❌",
+        logging.CRITICAL: "🔥",
+        logging.DEBUG: "🐛",
+    }
+
     COLORS = {
         logging.DEBUG: "\033[36m",   # cyan
         logging.INFO: "\033[32m",    # green
@@ -14,10 +22,22 @@ class ColorFormatter(logging.Formatter):
     }
     RESET = "\033[0m"
 
+    PREFIX = {
+        logging.DEBUG: "[DEBUG]",   # cyan
+        logging.INFO: "[INFO]",    # green
+        logging.WARNING: "[WARN]", # yellow
+        logging.ERROR: "[ERROR]",   # red
+        logging.CRITICAL: "[CRITICAL]",
+    }
+
     def format(self, record):
-        color = self.COLORS.get(record.levelno, "")
+        color = ColorFormatter.COLORS.get(record.levelno, "")
+        icon = ColorFormatter.ICONS.get(record.levelno, "")
         msg = super().format(record)
-        return f"{color}{msg}{self.RESET}"
+        if record.levelno == logging.WARNING:
+            return f"{icon} {color}{msg}{ColorFormatter.RESET}"
+        else:
+            return f"{icon}{color}{msg}{ColorFormatter.RESET}"
 
 logging_handler = logging.StreamHandler()
 logging_handler.setFormatter(ColorFormatter("[%(levelname)s] %(message)s"))

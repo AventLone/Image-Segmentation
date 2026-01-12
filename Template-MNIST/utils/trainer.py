@@ -86,14 +86,12 @@ class Trainer:
             f"\t Validation size: {n_val}"
         )
 
-        global_step = 0
         scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer, 
                                                   max_lr=Trainer.learning_rate,
                                                   steps_per_epoch=len(self._train_dataset),
                                                   epochs=epochs)
         for epoch in range(epochs):
             self._network.train()
-            epoch_loss = 0.0
             pbar = tqdm(self._train_dataset, desc=f"Epoch {epoch + 1}/{epochs}", unit=" batch")
             for x, y in pbar:
                 x: torch.Tensor = x.to(Trainer.device)
@@ -114,7 +112,7 @@ class Trainer:
 
                 # Logging (cleaner)
                 if self._wandb_logger is not None:
-                    self._wandb_logger.log({"train loss": loss.item()})                
+                    self._wandb_logger.log({"train loss": loss.item()})
 
             # -------- Validation -------- #
             train_acc = self._evaluate(self._train_dataset)
