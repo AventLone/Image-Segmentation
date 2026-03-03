@@ -6,11 +6,11 @@ def load_config(yaml_file_path: str) -> dict:
     
 class ColorFormatter(logging.Formatter):
     ICONS = {
+        logging.DEBUG: "🐛",
         logging.INFO: "💡",
         logging.WARNING: "⚠️",
-        logging.ERROR: "❌",
-        logging.CRITICAL: "🔥",
-        logging.DEBUG: "🐛",
+        logging.ERROR: "‼️",
+        logging.CRITICAL: "❌"
     }
 
     COLORS = {

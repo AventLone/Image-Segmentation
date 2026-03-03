@@ -1,4 +1,4 @@
-import logging, torch, sys
+import sys, logging, torch
 from utils.load_dataset import get_dataloaders
 from utils import Trainer
 from utils.common import load_config, logging_handler
@@ -17,9 +17,9 @@ if __name__ == '__main__':
 
     # 2. Prepare dataset.
     dataset_config = config["Dataset"]
-    train_loader, val_loader = get_dataloaders(dir_path=dataset_config["TrainDir"], 
-                                            batch_size=dataset_config["BatchSize"], 
-                                            val_ratio=dataset_config["ValidationRatio"])
+    train_loader, val_loader = get_dataloaders(dir_path=dataset_config["TrainDir"],
+                                               batch_size=dataset_config["BatchSize"],
+                                               val_ratio=dataset_config["ValidationRatio"])
 
     # if args.load:
     #     net.load_state_dict(torch.load(args.load, map_location=device))

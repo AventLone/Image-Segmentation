@@ -5,22 +5,19 @@ class UNet(nn.Module):
     """
     Full assembly of the parts to form the complete network
     """
-    def __init__(self, config: dict):
+    def __init__(self, channels_num: int, classes_num: int):
         super().__init__()
-        channels_num = config["ChannelsNum"]
-        classes_num = config["ClassesNum"]
-        bilinear = config["Bilinear"]
 
         self.inc = DoubleConv(channels_num, 64)
         self.down1 = Downsample(64, 128)
         self.down2 = Downsample(128, 256)
         self.down3 = Downsample(256, 512)
-        factor = 2 if bilinear else 1
+        factor = 2 
         self.down4 = Downsample(512, 1024 // factor)
-        self.up1 = Upsample(1024, 512 // factor, bilinear)
-        self.up2 = Upsample(512, 256 // factor, bilinear)
-        self.up3 = Upsample(256, 128 // factor, bilinear)
-        self.up4 = Upsample(128, 64, bilinear)
+        self.up1 = Upsample(1024, 512 // factor)
+        self.up2 = Upsample(512, 256 // factor)
+        self.up3 = Upsample(256, 128 // factor)
+        self.up4 = Upsample(128, 64)
         self.outc = OutConv(64, classes_num)
 
     def forward(self, x):

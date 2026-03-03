@@ -1,11 +1,15 @@
-import torch, wandb, logging, pathlib
+import torch
+import wandb
+import logging
+import pathlib
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 from tqdm import tqdm
 
+
 class Trainer:
-    #---------- Hyper parameters ----------
+    # ---------- Hyper parameters ----------
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu", 0)
     batch_size = 1
     learning_rate: float = 0.01
@@ -34,12 +38,14 @@ class Trainer:
         cls.batch_size = config["Dataset"]["BatchSize"]
 
     def __init__(self, network: nn.Module, project_name: str | None = None):
-        self._network: nn.Module = torch.compile(network).to(Trainer.device)    # type: ignore # Modern PyTorch (JIT-free) compile path
+        # type: ignore # Modern PyTorch (JIT-free) compile path
+        self._network: nn.Module = torch.compile(network).to(Trainer.device)
         self._optimizer = optim.AdamW(self._network.parameters(), lr=Trainer.learning_rate, weight_decay=1e-8)
-        self._criterion = nn.CrossEntropyLoss() # CrossEntropyLoss = LogSoftmax + NLLLoss. So it already contains `softmax`
+        self._criterion = nn.CrossEntropyLoss()  # CrossEntropyLoss = LogSoftmax + NLLLoss. So it already contains `softmax`
 
         # self._scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer, "max", patience=2)   # Goal: Maximize Dice score
-        self._grad_scaler = torch.GradScaler(device=Trainer.device.type, enabled=Trainer.amp)   # for mixed-precision training to keep training stable and fast.
+        # for mixed-precision training to keep training stable and fast.
+        self._grad_scaler = torch.GradScaler(device=Trainer.device.type, enabled=Trainer.amp)
 
         self._train_dataset = None
         self._val_dataset = None
@@ -75,7 +81,7 @@ class Trainer:
         n_val = len(self._val_dataset) if self._val_dataset else 0
 
         if self._wandb_logger is not None:
-            self._wandb_logger.config.update(dict(epochs=epochs, 
+            self._wandb_logger.config.update(dict(epochs=epochs,
                                                   batch_size=Trainer.batch_size,
                                                   learning_rate=Trainer.learning_rate,
                                                   amp=Trainer.amp))
@@ -86,7 +92,7 @@ class Trainer:
             f"\t Validation size: {n_val}"
         )
 
-        scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer, 
+        scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer,
                                                   max_lr=Trainer.learning_rate,
                                                   steps_per_epoch=len(self._train_dataset),
                                                   epochs=epochs)
@@ -134,11 +140,11 @@ class Trainer:
         if Trainer.save_onnx:
             sample_input = torch.randn(1, 1, 32, 32, device=Trainer.device)
             self._network.eval()
-            torch.onnx.export(self._network, sample_input, f=f"{Trainer.onnx_dir}/model.onnx", # type: ignore
-                export_params=True,      # <- this embeds weights inside the ONNX file
-                opset_version=18, do_constant_folding=True,
-                input_names=["input"], output_names=["output"]
-            )
+            torch.onnx.export(self._network, sample_input, f=f"{Trainer.onnx_dir}/model.onnx",  # type: ignore
+                              export_params=True,      # <- this embeds weights inside the ONNX file
+                              opset_version=18, do_constant_folding=True,
+                              input_names=["input"], output_names=["output"]
+                              )
 
     def _evaluate(self, dataset_loader):
         self._network.eval()
@@ -154,4 +160,3 @@ class Trainer:
                 correct += (preds == y.argmax(dim=1)).sum().item()
                 total += x.size(0)
         return correct / total
-    

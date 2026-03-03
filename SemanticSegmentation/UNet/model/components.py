@@ -44,15 +44,11 @@ class Upsample(nn.Module):
     """
     Upscaling then double conv
     """
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
-        # if bilinear, use the normal convolutions to reduce the number of channels
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
-        else:
-            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels)
+        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+
 
     def forward(self, x1: torch.Tensor, x2: torch.Tensor):
         x1 = self.up(x1)
@@ -73,3 +69,32 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+    
+
+def get_dino(device):
+    dino: nn.Module = torch.hub.load("facebookresearch/dinov3", "dinov3_vits16", pretrained=True) # type: ignore
+    dino = dino.to(device)
+    dino.eval()
+    return dino
+
+
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu", 0)
+    dino = get_dino(device)
+
+    from torchvision.io import decode_image, ImageReadMode
+    from torchvision.transforms import v2  # Use modern v2 transforms
+    from torchvision.transforms.functional import to_pil_image
+
+    input = decode_image("/home/avent/Desktop/generated_data/2026-01-27-123024/rgb/0011.png")
+    transform_val = v2.Compose([
+        # v2.Resize((32, 32), antialias=True),
+        v2.ToDtype(torch.float32, scale=True),
+        v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    result = dino(transform_val(input))
+    result_img = to_pil_image(result)
+
+
+

@@ -26,5 +26,6 @@ def record_latency(iterations=1):
                 end_time = time.time()
                 total_latency += (end_time - start_time)
             logging.info(f"Function {func.__name__} averagely took {total_latency / iterations:.4f} s")
+            return result
         return wrapper
     return run_iterations

@@ -12,7 +12,6 @@ torch.set_float32_matmul_precision("high")   # Allow TF32 on Ampere+ for speed
 
 
 net = ResNet()
-
 net: ResNet = torch.compile(net)   # type: ignore
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu", 0)
 net.to(device)
@@ -33,10 +32,30 @@ img_tensor: torch.Tensor = preprocess(img).to(device)   # type: ignore
 img_tensor = img_tensor.unsqueeze(0)
 logging.info(f"input shape is {img_tensor.shape}")
 
-# logits: torch.Tensor = F.softmax(net(img_tensor), dim=1)
-with torch.no_grad():
-    logits: torch.Tensor = net(img_tensor)
-logits = torch.softmax(logits.cpu(), dim=1)
+from utils.benchmark import record_latency
+
+@record_latency(iterations=10)
+def test():
+    with torch.inference_mode():
+        with torch.autocast('cuda', dtype=torch.bfloat16):
+            logits: torch.Tensor = net(img_tensor)
+    logits = torch.softmax(logits.cpu(), dim=1)
+    return logits
+
+@record_latency(iterations=10)
+def test2():
+    with torch.no_grad():
+        logits: torch.Tensor = net(img_tensor)
+    logits = torch.softmax(logits.cpu(), dim=1)
+    return logits
+
+logits = test() # warm up
+logits = test()
+logits = test()
+
+logits = test2() # warm up
+logits = test2()
+logits = test2()
 
 logging.info(f"Logits is {logits}")
 logging.info(f"Outcome is {logits.argmax(dim=1).item()}")
