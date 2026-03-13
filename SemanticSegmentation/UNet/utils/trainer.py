@@ -74,7 +74,9 @@ class Trainer:
         self._val_dataset = None
 
         self._network_name = network.__class__.__name__
-        self._wandb_logger = None if project_name is None else wandb.init(project=project_name)
+
+        self._timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        self._wandb_logger = None if project_name is None else wandb.init(project=project_name, name=self._timestamp)
 
         # ---------- Create folders to store trained model parameters ---------- #
         pathlib.Path(Trainer.CHECKPOINT_DIR).mkdir(parents=True, exist_ok=True)
@@ -96,26 +98,27 @@ class Trainer:
         n_train = len(self._train_dataset)
         n_val = len(self._val_dataset) if self._val_dataset else 0
 
+        criterion = nn.CrossEntropyLoss()  # CrossEntropyLoss = LogSoftmax + NLLLoss. So it already contains `softmax`
+        grad_scaler = torch.GradScaler(device=DEVICE.type)   # For mixed-precision training to keep training stable and fast.
+        scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer,
+                                                  max_lr=self._configs.learning_rate,
+                                                  steps_per_epoch=len(self._train_dataset),
+                                                  epochs=epochs)
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self._optimizer, T_max=int(epochs / 2))
+
         if self._wandb_logger is not None:
-            self._wandb_logger.config.update(dict(model=self._network_name,
-                                                  optimizer=self._optimizer.__class__.__name__,
-                                                  learning_rate=self._configs.learning_rate,
-                                                  batch_size=self._configs.batch_size,
-                                                  epochs=epochs))
+            self._wandb_logger.config.update(dict(Model=self._network_name,
+                                                  Optimizer=self._optimizer.__class__.__name__,
+                                                  Scheduler=scheduler.__class__.__name__,
+                                                  LearningRate=self._configs.learning_rate,
+                                                  BatchSize=self._configs.batch_size,
+                                                  Epochs=epochs))
         logging.info(
             f"Starting training:\n"
             f"\t Epochs:          {epochs}\n"
             f"\t Training size:   {n_train}\n"
             f"\t Validation size: {n_val}"
         )
-
-        criterion = nn.CrossEntropyLoss()  # CrossEntropyLoss = LogSoftmax + NLLLoss. So it already contains `softmax`
-        grad_scaler = torch.GradScaler(device=DEVICE.type)   # For mixed-precision training to keep training stable and fast.
-        # scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer,
-        #                                           max_lr=self._configs.learning_rate,
-        #                                           steps_per_epoch=len(self._train_dataset),
-        #                                           epochs=epochs)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self._optimizer, T_max=int(epochs / 2))
 
         for epoch in range(epochs):
             self._network.train()
@@ -161,8 +164,7 @@ class Trainer:
         if self._wandb_logger is not None:
             self._wandb_logger.finish()
 
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        torch.save(self._network.state_dict(), f"{Trainer.PTH_DIR}/{self._network_name}_{timestamp}.pth")
+        torch.save(self._network.state_dict(), f"{Trainer.PTH_DIR}/{self._network_name}_{self._timestamp}.pth")
 
         if self._configs.save_onnx:
             C, H, W = self._configs.input_size
