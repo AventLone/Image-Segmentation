@@ -29,7 +29,7 @@ preprocess = v2.Compose([
 input_path = "/home/avent/Desktop/generated_data/2026-02-02-131248/rgb/0002.png"
 
 img_tensor: torch.Tensor = decode_image(input_path, ImageReadMode.RGB)
-img_tensor: torch.Tensor = preprocess(img_tensor).unsqueeze(0).to(DEVICE)   # type: ignore
+img_tensor = preprocess(img_tensor).unsqueeze(0).to(DEVICE)   # type: ignore
 
 with torch.inference_mode():
     logits: torch.Tensor = net(img_tensor)
