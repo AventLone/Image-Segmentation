@@ -67,13 +67,8 @@ class Trainer:
 
     def __init__(self, network: nn.Module, configs: TrainConfigs, project_name: str | None = None):
         self._configs = configs
-        # type: ignore # Modern PyTorch (JIT-free) compile path
-        self._network: nn.Module = torch.compile(network).to(DEVICE)
+        self._network: nn.Module = torch.compile(network).to(DEVICE)   # type: ignore # Modern PyTorch (JIT-free) compile path
         self._optimizer = optim.AdamW(self._network.parameters(), lr=self._configs.learning_rate, weight_decay=1e-6)
-        self._criterion = nn.CrossEntropyLoss()  # CrossEntropyLoss = LogSoftmax + NLLLoss. So it already contains `softmax`
-
-        # For mixed-precision training to keep training stable and fast.
-        self._grad_scaler = torch.GradScaler(device=DEVICE.type)
 
         self._train_dataset = None
         self._val_dataset = None
@@ -114,16 +109,17 @@ class Trainer:
             f"\t Validation size: {n_val}"
         )
 
+        criterion = nn.CrossEntropyLoss()  # CrossEntropyLoss = LogSoftmax + NLLLoss. So it already contains `softmax`
+        grad_scaler = torch.GradScaler(device=DEVICE.type)   # For mixed-precision training to keep training stable and fast.
         # scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer,
         #                                           max_lr=self._configs.learning_rate,
         #                                           steps_per_epoch=len(self._train_dataset),
         #                                           epochs=epochs)
-
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self._optimizer, T_max=int(epochs / 2))
 
         for epoch in range(epochs):
             self._network.train()
-            pbar = tqdm(self._train_dataset, desc=f"Epoch {epoch + 1}/{epochs}", unit=" batch")
+            pbar = tqdm(self._train_dataset, desc=f"Epoch {epoch + 1}/{epochs}", unit=" batches")
             for images, masks in pbar:
                 images = images.to(device=DEVICE)
                 masks = masks.to(device=DEVICE)
@@ -133,10 +129,10 @@ class Trainer:
                     logits = self._network(images)
                     probs = F.softmax(logits, dim=1)
                     one_hot = F.one_hot(masks, self._configs.classes_num).permute(0, 3, 1, 2).float()
-                    loss: torch.Tensor = self._criterion(logits, masks) + dice_loss(probs, one_hot, multiclass=True)
-                self._grad_scaler.scale(loss).backward()
-                self._grad_scaler.step(self._optimizer)
-                self._grad_scaler.update()
+                    loss: torch.Tensor = criterion(logits, masks) + dice_loss(probs, one_hot, multiclass=True)
+                grad_scaler.scale(loss).backward()
+                grad_scaler.step(self._optimizer)
+                grad_scaler.update()
                 scheduler.step()
 
                 pbar.set_postfix(loss=loss.item())
@@ -211,7 +207,6 @@ class Trainer:
 
         IoU = tp / (tp + fp + fn + 1e-6)
         mIoU = IoU.mean()
-
         pixel_acc = tp.sum() / confusion_matrix.sum()
 
         return {"mIoU": mIoU.item(), "pixel acc": pixel_acc.item(), "IoU": IoU.cpu()}
