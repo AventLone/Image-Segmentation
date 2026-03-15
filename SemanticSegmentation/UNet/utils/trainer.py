@@ -18,7 +18,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu", 0)
 
 @dataclass
 class TrainConfigs:
-    learning_rate: float = 1.0e-2
+    learning_rate: float = 1.0e-3
     batch_size: int = 5
 
     classes_num: int = 0
@@ -232,28 +232,3 @@ class Trainer:
                 dice_score += multiclass_dice_coeff(preds[:, 1:, ...], masks[:, 1:, ...], reduce_batch_first=False)
             
         return dice_score / batches_num
-
-        # Iterate over the validation set
-        # for batch in tqdm(self._val_dataset, total=val_batches_num, desc="Validation round", unit="batch", leave=False):
-        #     image: torch.Tensor = batch["image"].to(device=Trainer.device, dtype=torch.float32)
-        #     true_mask: torch.Tensor = batch["mask"].to(device=Trainer.device, dtype=torch.long)
-        #     true_mask = F.one_hot(true_mask, Trainer.classes_num).permute(0, 3, 1, 2).float()
-
-        #     with torch.no_grad():
-        #         mask_pred: torch.Tensor = self._network(image)   # Predict the mask
-
-        #         # Convert to one-hot format
-        #         if Trainer.classes_num == 1:
-        #             mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
-        #             dice_score += dice_coeff(mask_pred, true_mask, reduce_batch_first=False)   # Compute the Dice score
-        #         else:
-        #             mask_pred = F.one_hot(mask_pred.argmax(dim=1), Trainer.classes_num).permute(0, 3, 1, 2).float()
-        #             # Compute the Dice score, ignoring background
-        #             dice_score += multiclass_dice_coeff(mask_pred[:, 1:, ...], true_mask[:, 1:, ...], reduce_batch_first=False)
-
-        # self._network.train()
-
-        # # Fixes a potential division by zero error
-        # if val_batches_num == 0:
-        #     return dice_score
-        # return dice_score / val_batches_num

@@ -11,6 +11,7 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         logging.fatal("Wrong format for the training command!")
         sys.exit(0)
+        
     epochs = int(sys.argv[1])
 
     if epochs == 0 or epochs is None:
