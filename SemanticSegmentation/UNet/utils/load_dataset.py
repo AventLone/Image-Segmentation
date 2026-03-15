@@ -128,7 +128,7 @@ def get_transform_val(input_height, input_width):
 
 def get_dataloaders(configs: TrainConfigs, num_workers: int = 8):
     dir_path = configs.datasets_dir_path
-    val_ratio = configs.val_ratio
+    val_ratio = max(configs.val_ratio, 0.05)
     batch_size = configs.batch_size
 
     _, H, W = configs.input_size
@@ -137,11 +137,6 @@ def get_dataloaders(configs: TrainConfigs, num_workers: int = 8):
 
     # Use training transform for base dataset
     full_dataset = SemanticSegDataset(dir_path, transforms=transforms_train)
-
-    if val_ratio <= 0:
-        return DataLoader(full_dataset, batch_size=batch_size, shuffle=True,
-                          num_workers=num_workers, pin_memory=True)
-
     dataset_size = len(full_dataset)
     val_size = int(val_ratio * dataset_size)
     train_size = dataset_size - val_size

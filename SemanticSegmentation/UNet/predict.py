@@ -17,16 +17,16 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu", 0)
 
 net = UNet(channels_num=3, classes_num=5)
 net: UNet = torch.compile(net).to(DEVICE)   # type: ignore
-net.load_state_dict(torch.load("./data/trained_model/pth/UNet_2026-02-28-173652.pth", map_location=DEVICE))
+net.load_state_dict(torch.load("./data/trained_model/pth/UNet_2026-03-14-023615.pth", map_location=DEVICE))
 net.eval()
 
 preprocess = v2.Compose([
-    v2.Resize((1024, 1024), antialias=True),
+    v2.Resize((512, 512), antialias=True),
     v2.ToDtype(torch.float32, scale=True),
     v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
-input_path = "/home/avent/Desktop/generated_data/2026-02-02-131248/rgb/0002.png"
+input_path = "/home/avent/Desktop/generated_data/2026-02-02-100502/rgb/0003.png"
 
 img_tensor: torch.Tensor = decode_image(input_path, ImageReadMode.RGB)
 img_tensor = preprocess(img_tensor).unsqueeze(0).to(DEVICE)   # type: ignore
@@ -71,6 +71,8 @@ def visualize(label_map: torch.Tensor, origin_img: Optional[cv2.Mat] = None):
     colormap = torch2cv2(colormap)
 
     if origin_img is not None:
+        origin_img = cv2.resize(origin_img, (colormap.shape[1], colormap.shape[0]))
+        # cv2.resize(a, (b.shape[1], b.shape[0]))
         combined = cv2.addWeighted(origin_img, 0.66, colormap, 0.34, 0)
         return combined
     

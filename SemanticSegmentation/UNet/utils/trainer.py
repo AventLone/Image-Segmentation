@@ -94,6 +94,9 @@ class Trainer:
     def run(self, epochs: int):
         if self._train_dataset is None:
             raise ValueError("Train dataset is None!")
+        
+        if self._val_dataset is None:
+            raise ValueError("Val dataset is None!")
 
         n_train = len(self._train_dataset)
         n_val = len(self._val_dataset) if self._val_dataset else 0
@@ -146,16 +149,14 @@ class Trainer:
 
             # -------- Validation -------- #
             train_acc = self._evaluate(self._train_dataset)
-            logging.info(f"Train accuracy: mIoU: {train_acc["mIoU"]:.3f}, Pixel Acc: {train_acc["pixel acc"]:.3f}")
-            if self._val_dataset is not None:
-                val_acc = self._evaluate(self._val_dataset)
-                # logging.info(f"Validation accuracy: {val_acc}")
-                logging.info(f"Validation accuracy: mIoU: {val_acc["mIoU"]:.3f}, Pixel Acc: {val_acc["pixel acc"]:.3f}")
+            val_acc = self._evaluate(self._val_dataset)
+            # logging.info(f"Train accuracy: mIoU: {train_acc["mIoU"]:.3f}, Pixel Acc: {train_acc["pixel acc"]:.3f}")
+            logging.info(f"Train accuracy: {train_acc:.3f}, Validation accuracy: {val_acc:.3f}")
 
             if self._wandb_logger is not None:
-                self._wandb_logger.log({"train/mIoU": train_acc["mIoU"], "val/mIoU": val_acc["mIoU"]})
-                if self._val_dataset is not None:
-                    self._wandb_logger.log({"train/pixel_acc": train_acc["pixel acc"], "val/pixel_acc": val_acc["pixel acc"]})
+                self._wandb_logger.log({"train/acc(dsc)": train_acc, "val/acc(dsc)": val_acc})
+                # if self._val_dataset is not None:
+                #     self._wandb_logger.log({"train/pixel_acc": train_acc["pixel acc"], "val/pixel_acc": val_acc["pixel acc"]})
 
             if self._configs.save_checkpoint:
                 torch.save(self._network.state_dict(), f"{Trainer.CHECKPOINT_DIR}/checkpoint_epoch{epoch + 1}.pth")
@@ -177,9 +178,46 @@ class Trainer:
                 input_names=["input"], output_names=["output"]
             )
 
+    # def _evaluate(self, dataset_loader: Iterable[tuple[torch.Tensor, torch.Tensor]]):
+    #     N = self._configs.classes_num
+    #     confusion_matrix = torch.zeros((N, N), dtype=torch.int64, device=DEVICE)
+
+    #     self._network.eval()
+    #     with torch.inference_mode():
+    #         for images, masks in dataset_loader:
+    #             images = images.to(device=DEVICE)
+    #             masks = masks.to(device=DEVICE)
+
+    #             logits: torch.Tensor = self._network(images)
+    #             preds = logits.argmax(dim=1)
+
+    #             # flatten
+    #             preds = preds.view(-1)
+    #             masks = masks.view(-1)
+
+    #             valid = (masks >= 0) & (masks < N)
+    #             preds = preds[valid]
+    #             masks = masks[valid]
+
+    #             indices = N * masks + preds
+    #             cm = torch.bincount(indices, minlength=N ** 2).reshape(N, N)
+    #             confusion_matrix += cm
+
+    #     # metrics
+    #     tp = confusion_matrix.diag()
+    #     fp = confusion_matrix.sum(0) - tp
+    #     fn = confusion_matrix.sum(1) - tp
+
+    #     IoU = tp / (tp + fp + fn + 1e-6)
+    #     mIoU = IoU.mean()
+    #     pixel_acc = tp.sum() / confusion_matrix.sum()
+
+    #     return {"mIoU": mIoU.item(), "pixel acc": pixel_acc.item(), "IoU": IoU.cpu()}
+
     def _evaluate(self, dataset_loader: Iterable[tuple[torch.Tensor, torch.Tensor]]):
         N = self._configs.classes_num
-        confusion_matrix = torch.zeros((N, N), dtype=torch.int64, device=DEVICE)
+        batches_num = len(dataset_loader)  # type: ignore
+        dice_score = 0
 
         self._network.eval()
         with torch.inference_mode():
@@ -187,28 +225,35 @@ class Trainer:
                 images = images.to(device=DEVICE)
                 masks = masks.to(device=DEVICE)
 
-                logits: torch.Tensor = self._network(images)
-                preds = logits.argmax(dim=1)
+                masks = F.one_hot(masks, N).permute(0, 3, 1, 2).float()
+                preds: torch.Tensor = self._network(images)
 
-                # flatten
-                preds = preds.view(-1)
-                masks = masks.view(-1)
+                preds = F.one_hot(preds.argmax(dim=1), N).permute(0, 3, 1, 2).float()
+                dice_score += multiclass_dice_coeff(preds[:, 1:, ...], masks[:, 1:, ...], reduce_batch_first=False)
+            
+        return dice_score / batches_num
 
-                valid = (masks >= 0) & (masks < N)
-                preds = preds[valid]
-                masks = masks[valid]
+        # Iterate over the validation set
+        # for batch in tqdm(self._val_dataset, total=val_batches_num, desc="Validation round", unit="batch", leave=False):
+        #     image: torch.Tensor = batch["image"].to(device=Trainer.device, dtype=torch.float32)
+        #     true_mask: torch.Tensor = batch["mask"].to(device=Trainer.device, dtype=torch.long)
+        #     true_mask = F.one_hot(true_mask, Trainer.classes_num).permute(0, 3, 1, 2).float()
 
-                indices = N * masks + preds
-                cm = torch.bincount(indices, minlength=N ** 2).reshape(N, N)
-                confusion_matrix += cm
+        #     with torch.no_grad():
+        #         mask_pred: torch.Tensor = self._network(image)   # Predict the mask
 
-        # metrics
-        tp = confusion_matrix.diag()
-        fp = confusion_matrix.sum(0) - tp
-        fn = confusion_matrix.sum(1) - tp
+        #         # Convert to one-hot format
+        #         if Trainer.classes_num == 1:
+        #             mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
+        #             dice_score += dice_coeff(mask_pred, true_mask, reduce_batch_first=False)   # Compute the Dice score
+        #         else:
+        #             mask_pred = F.one_hot(mask_pred.argmax(dim=1), Trainer.classes_num).permute(0, 3, 1, 2).float()
+        #             # Compute the Dice score, ignoring background
+        #             dice_score += multiclass_dice_coeff(mask_pred[:, 1:, ...], true_mask[:, 1:, ...], reduce_batch_first=False)
 
-        IoU = tp / (tp + fp + fn + 1e-6)
-        mIoU = IoU.mean()
-        pixel_acc = tp.sum() / confusion_matrix.sum()
+        # self._network.train()
 
-        return {"mIoU": mIoU.item(), "pixel acc": pixel_acc.item(), "IoU": IoU.cpu()}
+        # # Fixes a potential division by zero error
+        # if val_batches_num == 0:
+        #     return dice_score
+        # return dice_score / val_batches_num
