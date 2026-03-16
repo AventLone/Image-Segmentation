@@ -110,12 +110,12 @@ class Trainer:
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self._optimizer, T_max=int(epochs / 2))
 
         if self._wandb_logger is not None:
-            self._wandb_logger.config.update(dict(Model=self._network_name,
-                                                  Optimizer=self._optimizer.__class__.__name__,
-                                                  Scheduler=scheduler.__class__.__name__,
-                                                  LearningRate=self._configs.learning_rate,
-                                                  BatchSize=self._configs.batch_size,
-                                                  Epochs=epochs))
+            self._wandb_logger.config.update({"model": self._network_name,
+                                              "optimizer": self._optimizer.__class__.__name__,
+                                              "scheduler": scheduler.__class__.__name__,
+                                              "lr": self._configs.learning_rate,
+                                              "batch size": self._configs.batch_size,
+                                              "epochs": epochs})
         logging.info(
             f"Starting training:\n"
             f"\t Epochs:          {epochs}\n"
@@ -150,13 +150,10 @@ class Trainer:
             # -------- Validation -------- #
             train_acc = self._evaluate(self._train_dataset)
             val_acc = self._evaluate(self._val_dataset)
-            # logging.info(f"Train accuracy: mIoU: {train_acc["mIoU"]:.3f}, Pixel Acc: {train_acc["pixel acc"]:.3f}")
             logging.info(f"Train accuracy: {train_acc:.3f}, Validation accuracy: {val_acc:.3f}")
 
             if self._wandb_logger is not None:
                 self._wandb_logger.log({"train/acc(dsc)": train_acc, "val/acc(dsc)": val_acc})
-                # if self._val_dataset is not None:
-                #     self._wandb_logger.log({"train/pixel_acc": train_acc["pixel acc"], "val/pixel_acc": val_acc["pixel acc"]})
 
             if self._configs.save_checkpoint:
                 torch.save(self._network.state_dict(), f"{Trainer.CHECKPOINT_DIR}/checkpoint_epoch{epoch + 1}.pth")
@@ -177,42 +174,6 @@ class Trainer:
                 opset_version=18, do_constant_folding=True,
                 input_names=["input"], output_names=["output"]
             )
-
-    # def _evaluate(self, dataset_loader: Iterable[tuple[torch.Tensor, torch.Tensor]]):
-    #     N = self._configs.classes_num
-    #     confusion_matrix = torch.zeros((N, N), dtype=torch.int64, device=DEVICE)
-
-    #     self._network.eval()
-    #     with torch.inference_mode():
-    #         for images, masks in dataset_loader:
-    #             images = images.to(device=DEVICE)
-    #             masks = masks.to(device=DEVICE)
-
-    #             logits: torch.Tensor = self._network(images)
-    #             preds = logits.argmax(dim=1)
-
-    #             # flatten
-    #             preds = preds.view(-1)
-    #             masks = masks.view(-1)
-
-    #             valid = (masks >= 0) & (masks < N)
-    #             preds = preds[valid]
-    #             masks = masks[valid]
-
-    #             indices = N * masks + preds
-    #             cm = torch.bincount(indices, minlength=N ** 2).reshape(N, N)
-    #             confusion_matrix += cm
-
-    #     # metrics
-    #     tp = confusion_matrix.diag()
-    #     fp = confusion_matrix.sum(0) - tp
-    #     fn = confusion_matrix.sum(1) - tp
-
-    #     IoU = tp / (tp + fp + fn + 1e-6)
-    #     mIoU = IoU.mean()
-    #     pixel_acc = tp.sum() / confusion_matrix.sum()
-
-    #     return {"mIoU": mIoU.item(), "pixel acc": pixel_acc.item(), "IoU": IoU.cpu()}
 
     def _evaluate(self, dataset_loader: Iterable[tuple[torch.Tensor, torch.Tensor]]):
         N = self._configs.classes_num

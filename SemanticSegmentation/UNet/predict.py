@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from typing import Optional
 
 logging.basicConfig(level=logging.INFO, handlers=[logging_handler])
+
 torch.backends.cudnn.deterministic = False   # Set True for full determinism (slower)
 torch.backends.cudnn.benchmark = True
 torch.set_float32_matmul_precision("high")   # Allow TF32 on Ampere+ for speed
