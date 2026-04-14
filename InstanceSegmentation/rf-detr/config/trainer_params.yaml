@@ -1,0 +1,11 @@
+ClassesNum: 5
+InputSize: [3, 512, 512]
+
+LearningRate: 2.0e-3
+BatchSize: 15
+
+SaveCheckpoint: False
+SaveOnnx: False
+
+DatasetsDir: "/home/avent/Desktop/generated_data/2026-02-02-131248"
+ValRatio: 0.2
