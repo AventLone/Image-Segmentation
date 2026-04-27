@@ -13,4 +13,4 @@ model.train(
     run=datetime.now().strftime("%Y-%m-%d-%H%M%S")      # Optional: Specify W&B run name
 )
 
-model.export(output_dir="exported_models")
+model.export(output_dir="exported_models", verbose=False)
