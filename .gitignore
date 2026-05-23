@@ -14,10 +14,12 @@ meshs/
 *.pcd
 *.ply
 
+
 .idea/
 cmake-build-release/
 
 *.pt
+*.ckpt
 *.pth
 *.onnx
 

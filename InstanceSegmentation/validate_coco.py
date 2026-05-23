@@ -69,8 +69,8 @@ import numpy as np
 from pycocotools import mask as mask_utils
 
 # ==== 配置 ====
-json_path = "/home/avent/Desktop/generated_data/2026-04-22-145145/coco_annotations_xhtcmyyt.json"
-image_root = "/home/avent/Desktop/generated_data/2026-04-22-145145/"   # JSON 里 file_name 的根目录
+json_path = "/home/linde/Downloads/rf/valid/_annotations.coco.json"
+image_root = "/home/linde/Downloads/rf/valid/"   # JSON 里 file_name 的根目录
 
 
 # ===== 读取 =====

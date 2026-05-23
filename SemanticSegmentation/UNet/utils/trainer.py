@@ -65,10 +65,13 @@ class Trainer:
     ONNX_DIR = "./data/trained_model/onnx"
     PTH_DIR = "./data/trained_model/pth"
 
-    def __init__(self, network: nn.Module, configs: TrainConfigs, project_name: str | None = None):
+    def __init__(self, network: nn.Module, configs: TrainConfigs,
+                 project_name: str | None = None):
         self._configs = configs
-        self._network: nn.Module = torch.compile(network).to(DEVICE)   # type: ignore # Modern PyTorch (JIT-free) compile path
-        self._optimizer = optim.AdamW(self._network.parameters(), lr=self._configs.learning_rate, weight_decay=1e-6)
+        # type: ignore # Modern PyTorch (JIT-free) compile path
+        self._network: nn.Module = torch.compile(network).to(DEVICE)
+        self._optimizer = optim.AdamW(self._network.parameters(),
+                                      lr=self._configs.learning_rate, weight_decay=1e-6)
 
         self._train_dataset = None
         self._val_dataset = None
@@ -76,7 +79,8 @@ class Trainer:
         self._network_name = network.__class__.__name__
 
         self._timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        self._wandb_logger = None if project_name is None else wandb.init(project=project_name, name=self._timestamp)
+        self._wandb_logger = None if project_name is None else wandb.init(
+            project=project_name, name=self._timestamp)
 
         # ---------- Create folders to store trained model parameters ---------- #
         pathlib.Path(Trainer.CHECKPOINT_DIR).mkdir(parents=True, exist_ok=True)
@@ -94,7 +98,7 @@ class Trainer:
     def run(self, epochs: int):
         if self._train_dataset is None:
             raise ValueError("Train dataset is None!")
-        
+
         if self._val_dataset is None:
             raise ValueError("Val dataset is None!")
 
@@ -102,12 +106,14 @@ class Trainer:
         n_val = len(self._val_dataset) if self._val_dataset else 0
 
         criterion = nn.CrossEntropyLoss()  # CrossEntropyLoss = LogSoftmax + NLLLoss. So it already contains `softmax`
-        grad_scaler = torch.GradScaler(device=DEVICE.type)   # For mixed-precision training to keep training stable and fast.
-        scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer,
-                                                  max_lr=self._configs.learning_rate,
-                                                  steps_per_epoch=len(self._train_dataset),
-                                                  epochs=epochs)
-        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self._optimizer, T_max=int(epochs / 2))
+        # For mixed-precision training to keep training stable and fast.
+        grad_scaler = torch.GradScaler(device=DEVICE.type)
+        # scheduler = optim.lr_scheduler.OneCycleLR(self._optimizer,
+        #                                           max_lr=self._configs.learning_rate,
+        #                                           steps_per_epoch=len(self._train_dataset),
+        #                                           epochs=epochs)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self._optimizer, 
+                                                               T_max=int(epochs / 2))
 
         if self._wandb_logger is not None:
             self._wandb_logger.config.update({"model": self._network_name,
@@ -135,7 +141,8 @@ class Trainer:
                     logits = self._network(images)
                     probs = F.softmax(logits, dim=1)
                     one_hot = F.one_hot(masks, self._configs.classes_num).permute(0, 3, 1, 2).float()
-                    loss: torch.Tensor = criterion(logits, masks) + dice_loss(probs, one_hot, multiclass=True)
+                    loss: torch.Tensor = criterion(logits, masks) + dice_loss(probs, one_hot, 
+                                                                              multiclass=True)
                 grad_scaler.scale(loss).backward()
                 grad_scaler.step(self._optimizer)
                 grad_scaler.update()
@@ -145,7 +152,8 @@ class Trainer:
 
                 # Logging (cleaner)
                 if self._wandb_logger is not None:
-                    self._wandb_logger.log({"train/loss": loss.item(), "train/lr": self._optimizer.param_groups[0]["lr"]})
+                    self._wandb_logger.log(
+                        {"train/loss": loss.item(), "train/lr": self._optimizer.param_groups[0]["lr"]})
 
             # -------- Validation -------- #
             train_acc = self._evaluate(self._train_dataset)
@@ -156,13 +164,15 @@ class Trainer:
                 self._wandb_logger.log({"train/acc(dsc)": train_acc, "val/acc(dsc)": val_acc})
 
             if self._configs.save_checkpoint:
-                torch.save(self._network.state_dict(), f"{Trainer.CHECKPOINT_DIR}/checkpoint_epoch{epoch + 1}.pth")
+                torch.save(self._network.state_dict(), 
+                           f"{Trainer.CHECKPOINT_DIR}/checkpoint_epoch{epoch + 1}.pth")
                 logging.info(f'Checkpoint {epoch + 1} saved!')
 
         if self._wandb_logger is not None:
             self._wandb_logger.finish()
 
-        torch.save(self._network.state_dict(), f"{Trainer.PTH_DIR}/{self._network_name}_{self._timestamp}.pth")
+        torch.save(self._network.state_dict(), 
+                   f"{Trainer.PTH_DIR}/{self._network_name}_{self._timestamp}.pth")
 
         if self._configs.save_onnx:
             C, H, W = self._configs.input_size
@@ -190,6 +200,7 @@ class Trainer:
                 preds: torch.Tensor = self._network(images)
 
                 preds = F.one_hot(preds.argmax(dim=1), N).permute(0, 3, 1, 2).float()
-                dice_score += multiclass_dice_coeff(preds[:, 1:, ...], masks[:, 1:, ...], reduce_batch_first=False)
-            
+                dice_score += multiclass_dice_coeff(preds[:, 1:, ...], masks[:, 1:, ...], 
+                                                    reduce_batch_first=False)
+
         return dice_score / batches_num
