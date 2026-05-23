@@ -1,0 +1,1 @@
+trtexec --onnx=exported_models/inference_model.onnx --saveEngine=exported_models/rfdetr_model.plan --fp16

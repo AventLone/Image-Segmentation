@@ -5,6 +5,8 @@ build/
 log/
 wandb/
 __pycache__/
+output/
+exported_models/
 
 meshs/
 
@@ -22,4 +24,5 @@ cmake-build-release/
 *.ckpt
 *.pth
 *.onnx
+*.ckpt
 

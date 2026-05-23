@@ -57,6 +57,7 @@ image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 image_cv = visulaizeSeg(image_cv, detections)
 
 # 3. Display or save
-cv2.imshow("RF-DETR Detections", image_cv)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+# cv2.imshow("RF-DETR Detections", image_cv)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
+cv2.imwrite("RF-DETR-Detection.png", image_cv)

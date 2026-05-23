@@ -1,4 +1,4 @@
-from torchvision.io import decode_image, ImageReadMode
+ from torchvision.io import decode_image, ImageReadMode
 from torchvision.transforms.functional import to_pil_image
 import torch, logging, cv2
 import numpy as np
