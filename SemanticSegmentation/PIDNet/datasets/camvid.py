@@ -33,7 +33,7 @@ class CamVid(BaseDataset):
         self.multi_scale = multi_scale
         self.flip = flip
         
-        self.img_list = [line.strip().split() for line in open(root+list_path)]
+        self.img_list = [line.strip().split() for line in open(root + list_path)]
 
         self.files = self.read_files()
 

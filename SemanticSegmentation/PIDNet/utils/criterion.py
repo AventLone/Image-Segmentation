@@ -43,9 +43,9 @@ class OhemCrossEntropy(nn.Module):
         loss = self.criterion(score, target)
         return loss
 
-    def _ohem_forward(self, score, target, **kwargs):
+    def _ohem_forward(self, score, target: torch.Tensor, **kwargs):
         pred = F.softmax(score, dim=1)
-        pixel_losses = self.criterion(score, target).contiguous().view(-1)
+        pixel_losses: torch.Tensor = self.criterion(score, target).contiguous().view(-1)
         mask = target.contiguous().view(-1) != self.ignore_label
 
         tmp_target = target.clone()
@@ -75,8 +75,8 @@ class OhemCrossEntropy(nn.Module):
             raise ValueError("lengths of prediction and target are not identical!")
 
 
-def weighted_bce(bd_pre, target):
-    n, c, h, w = bd_pre.size()
+def weighted_bce(bd_pre: torch.Tensor, target: torch.Tensor):
+    # n, c, h, w = bd_pre.size()
     log_p = bd_pre.permute(0, 2, 3, 1).contiguous().view(1, -1)
     target_t = target.view(1, -1)
 
