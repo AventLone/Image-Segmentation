@@ -23,3 +23,9 @@ cmake-build-release/
 *.pth
 *.onnx
 
+*.png
+*.jpg
+
+output/
+exported_models/
+
