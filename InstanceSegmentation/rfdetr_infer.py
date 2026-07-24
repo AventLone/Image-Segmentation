@@ -1,12 +1,10 @@
-import supervision as sv
-from rfdetr import RFDETRSegMedium, RFDETRSegLarge, RFDETRSegSmall
-from rfdetr.assets.coco_classes import COCO_CLASSES
+from rfdetr import RFDETRSegSmall
 from PIL import Image
 import cv2
 import numpy as np
 from pathlib import Path
 
-LABELS = {0: "pallet", 1: "pallet", 2: "goods", 3: "storage_cage"}
+LABELS = {0: "pallet", 1: "KKP", 2: "goods"}
 
 def draw_contour(img, mask, color):
     contours, _ = cv2.findContours(
@@ -66,23 +64,15 @@ def infer_folder(folder_path: str, output_folder_name: str = "visualized"):
         cv2.imwrite(str(save_path), image_cv)
     
 
-# model = RFDETRSegMedium(pretrain_weights="output/checkpoint_best_ema.pth", num_queries=100, num_select=100, num_classes=2)
 model = RFDETRSegSmall(pretrain_weights="output_s/checkpoint_best_total.pth", num_queries=100)
 model.optimize_for_inference()
 image = Image.open("/home/linde/Downloads/image_5.png").convert("RGB")
 detections = model.predict(image, threshold=0.5)
 
-# 1. Convert PIL image to OpenCV BGR format
-image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
+image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 image_cv = visulaizeSeg(image_cv, detections)
 
-# 3. Display or save
-# cv2.imshow("RF-DETR Detections", image_cv)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
-cv2.imwrite("RF-DETR-Detection.png", image_cv)
 
-# Example batch inference:
-# infer_folder("/path/to/images")
+cv2.imwrite("RF-DETR-Detection.png", image_cv)
 

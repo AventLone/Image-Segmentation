@@ -9,12 +9,16 @@ output/
 exported_models/
 
 meshs/
+outputs/
+pretrained/
 
 *.obj
 *.mtl
 *.urdf
 *.pcd
 *.ply
+*.png
+*.jpg
 
 
 .idea/

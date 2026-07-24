@@ -1,4 +1,4 @@
- from torchvision.io import decode_image, ImageReadMode
+from torchvision.io import decode_image, ImageReadMode
 from torchvision.transforms.functional import to_pil_image
 import torch, logging, cv2
 import numpy as np
@@ -30,7 +30,7 @@ preprocess = v2.Compose([
 input_path = "/home/avent/Desktop/generated_data/2026-02-02-100502/rgb/0003.png"
 
 img_tensor: torch.Tensor = decode_image(input_path, ImageReadMode.RGB)
-img_tensor = preprocess(img_tensor).unsqueeze(0).to(DEVICE)   # type: ignore
+img_tensor = preprocess(img_tensor).unsqueeze(0).to(DEVICE)
 
 with torch.inference_mode():
     logits: torch.Tensor = net(img_tensor)
