@@ -12,16 +12,16 @@ from transformers import SegformerForSemanticSegmentation, SegformerImageProcess
 from transformers.modeling_outputs import SemanticSegmenterOutput
 from transformers.optimization import get_linear_schedule_with_warmup
 
-from segformer_train.config import TrainConfig
-from segformer_train.data import (
+from utils.config import TrainConfig
+from utils.data import (
     SegmentationDataset,
     collate_batch,
     discover_pairs,
     infer_num_labels,
     load_class_names,
 )
-from segformer_train.export_utils import export_onnx_model
-from segformer_train.training_utils import evaluate, init_wandb, require_loss, save_metadata, set_seed
+from utils.export_utils import export_onnx_model
+from utils.training_utils import evaluate, init_wandb, require_loss, save_metadata, set_seed
 from utils.common import logging_handler
 
 logging.basicConfig(level=logging.INFO, handlers=[logging_handler])
@@ -182,7 +182,7 @@ def main() -> None:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(output_dir, id2label, label2id, args, train_size=train_size, val_size=val_size)
-    run: Any | None = init_wandb(args, num_labels)
+    run = init_wandb(args, num_labels)
 
     logger.info(
         "training_start model=%s epochs=%d batch_size=%d image_size=%d amp=%s lr=%g",
@@ -236,14 +236,9 @@ def main() -> None:
                 train_bar.set_postfix(loss=f"{avg_loss:.4f}", lr=f"{scheduler.get_last_lr()[0]:.2e}")
 
                 if run is not None:
-                    run.log(
-                        {
-                            "train/loss_step": loss_value,
+                    run.log({"train/loss_step": loss_value,
                             "train/learning_rate": scheduler.get_last_lr()[0],
-                            "train/epoch": epoch,
-                        },
-                        step=global_step,
-                    )
+                             "train/epoch": epoch}, step=global_step)
 
             train_loss = running_loss / max(len(train_loader), 1)
             logger.info("epoch=%d/%d train_loss=%.4f", epoch, args.epochs, train_loss)

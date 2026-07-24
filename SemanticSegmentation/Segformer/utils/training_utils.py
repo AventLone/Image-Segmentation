@@ -8,11 +8,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import wandb
+from wandb.sdk.wandb_run import Run
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers.modeling_outputs import SemanticSegmenterOutput
 
-from segformer_train.config import TrainConfig
+from utils.config import TrainConfig
 
 
 def set_seed(seed: int) -> None:
