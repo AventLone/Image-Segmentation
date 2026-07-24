@@ -2,7 +2,7 @@ import json
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -49,14 +49,7 @@ def require_loss(loss: Optional[torch.Tensor]) -> torch.Tensor:
     return loss
 
 
-def evaluate(
-    model: nn.Module,
-    dataloader: DataLoader,
-    device: torch.device,
-    num_labels: int,
-    ignore_index: int,
-    amp_dtype: torch.dtype,
-) -> Tuple[float, float]:
+def evaluate(model: nn.Module, dataloader: DataLoader, device: torch.device, num_labels: int, ignore_index: int, amp_dtype: torch.dtype) -> Tuple[float, float]:
     model.eval()
     losses: List[float] = []
     mean_ious: List[float] = []
@@ -89,14 +82,7 @@ def evaluate(
     return avg_loss, avg_miou
 
 
-def save_metadata(
-    output_dir: Path,
-    id2label: Dict[int, str],
-    label2id: Dict[str, int],
-    args: TrainConfig,
-    train_size: int,
-    val_size: int,
-) -> None:
+def save_metadata(output_dir: Path, id2label: Dict[int, str], label2id: Dict[str, int], args: TrainConfig, train_size: int, val_size: int) -> None:
     metadata = {
         "id2label": {str(key): value for key, value in id2label.items()},
         "label2id": label2id,
@@ -133,6 +119,6 @@ def init_wandb(args: TrainConfig, num_labels: int) -> Optional[Run]:
             "num_labels": num_labels,
             "dataset": str(args.dataset),
             "val_ratio": args.val_ratio,
-            "output_dir": str(args.output_dir),
+            "output_dir": str(args.output_dir)
         },
     )

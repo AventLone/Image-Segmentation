@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -5,14 +6,18 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import tv_tensors
 from torchvision.io import ImageReadMode, decode_image
 from torchvision.transforms import v2
 from transformers import SegformerImageProcessor
 
+from utils.config import TrainConfig
+from utils.trainer import resolve_model_source
+
 
 IMG_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+logger = logging.getLogger(__name__)
 
 
 def load_class_names(path: Optional[Path]) -> Optional[List[str]]:
@@ -143,3 +148,96 @@ def collate_batch(samples: Sequence[Dict[str, torch.Tensor]]) -> Batch:
     pixel_values = torch.stack([sample["pixel_values"] for sample in samples])
     labels = torch.stack([sample["labels"] for sample in samples])
     return Batch(pixel_values=pixel_values, labels=labels)
+
+
+def get_dataloaders(configs: TrainConfig) -> Tuple[DataLoader, Optional[DataLoader], Dict[str, object]]:
+    if configs.dataset is None:
+        raise ValueError("Set TrainConfig.dataset to your dataset folder containing 'rgb' and 'mask'.")
+    if not 0 <= configs.val_ratio < 1:
+        raise ValueError("--val-ratio must be in [0, 1).")
+
+    dataset_rgb = configs.dataset / "rgb"
+    dataset_mask = configs.dataset / "mask"
+    pairs = discover_pairs(dataset_rgb, dataset_mask)
+
+    class_names = load_class_names(configs.classes)
+    num_labels = len(class_names) if class_names else infer_num_labels(pairs, configs.ignore_index)
+    if class_names and len(class_names) != num_labels:
+        raise ValueError("Class file length must match the number of labels in your masks.")
+
+    id2label = {index: name for index, name in enumerate(class_names or [f"class_{i}" for i in range(num_labels)])}
+    label2id = {name: index for index, name in id2label.items()}
+
+    model_source = resolve_model_source(configs.model_name)
+    processor = SegformerImageProcessor.from_pretrained(
+        model_source,
+        do_resize=True,
+        size={"height": configs.image_size, "width": configs.image_size},
+        do_reduce_labels=False,
+    )
+
+    total_size = len(pairs)
+    if configs.val_ratio > 0 and total_size < 2:
+        raise ValueError("Need at least 2 samples to create a train/validation split.")
+
+    val_size = int(total_size * configs.val_ratio)
+    if configs.val_ratio > 0 and val_size == 0:
+        val_size = 1
+    train_size = total_size - val_size
+    if train_size <= 0:
+        raise ValueError("Validation split leaves no samples for training. Reduce --val-ratio.")
+
+    if val_size > 0:
+        generator = torch.Generator().manual_seed(configs.seed)
+        train_pairs_subset, val_pairs_subset = random_split(pairs, [train_size, val_size], generator=generator)
+        train_pairs = [train_pairs_subset[i] for i in range(len(train_pairs_subset))]
+        val_pairs = [val_pairs_subset[i] for i in range(len(val_pairs_subset))]
+    else:
+        train_pairs = list(pairs)
+        val_pairs = []
+
+    train_dataset = SegmentationDataset(
+        train_pairs,
+        processor,
+        image_size=configs.image_size,
+        use_augmentation=not configs.disable_augmentation,
+    )
+    val_dataset = (
+        SegmentationDataset(val_pairs, processor, image_size=configs.image_size, use_augmentation=False)
+        if val_pairs
+        else None
+    )
+
+    logger.info("dataset_split train=%d val=%d", train_size, val_size)
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=configs.batch_size,
+        shuffle=True,
+        num_workers=configs.num_workers,
+        pin_memory=True,
+        persistent_workers=configs.num_workers > 0,
+        collate_fn=collate_batch,
+    )
+    val_loader = (
+        DataLoader(
+            val_dataset,
+            batch_size=configs.batch_size,
+            shuffle=False,
+            num_workers=configs.num_workers,
+            pin_memory=True,
+            persistent_workers=configs.num_workers > 0,
+            collate_fn=collate_batch,
+        )
+        if val_dataset
+        else None
+    )
+
+    metadata: Dict[str, object] = {
+        "num_labels": num_labels,
+        "id2label": id2label,
+        "label2id": label2id,
+        "train_size": train_size,
+        "val_size": val_size,
+    }
+    return train_loader, val_loader, metadata
