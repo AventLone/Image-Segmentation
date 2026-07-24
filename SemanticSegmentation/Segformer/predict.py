@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from typing import Optional
 
 # feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b5-finetuned-ade-512-512")
-processor = SegformerImageProcessor.from_pretrained("./outputs/segformer/best_model")
-model = SegformerForSemanticSegmentation.from_pretrained("./outputs/segformer/best_model")
+processor = SegformerImageProcessor.from_pretrained("./outputs/2026.07.24/best_model")
+model = SegformerForSemanticSegmentation.from_pretrained("./outputs/2026.07.24/best_model")
 
 # url = "http://images.cocodataset.org/val2017/000000039769.jpg"
 # image = Image.open(requests.get(url, stream=True).raw)
@@ -68,7 +68,7 @@ def visualize(label_map: torch.Tensor, origin_img: Optional[cv2.Mat] = None):
     colormap = torch2cv2(colormap)
 
     if origin_img is not None:
-        combined = cv2.addWeighted(origin_img, 0.5, colormap, 0.5, 0)
+        combined = cv2.addWeighted(origin_img, 0.3, colormap, 0.7, 0)
         return combined
     
     return colormap

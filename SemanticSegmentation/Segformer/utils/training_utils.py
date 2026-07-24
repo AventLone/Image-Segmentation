@@ -54,7 +54,7 @@ def evaluate(model: nn.Module, dataloader: DataLoader, device: torch.device, num
     losses: List[float] = []
     mean_ious: List[float] = []
 
-    val_bar = tqdm(dataloader, total=len(dataloader), desc="Validation", leave=False, dynamic_ncols=True)
+    val_bar = tqdm(dataloader, total=len(dataloader), desc="Validation", unit="batches", leave=True, dynamic_ncols=True)
     with torch.inference_mode():
         for batch in val_bar:
             pixel_values = batch.pixel_values.to(device, non_blocking=True).contiguous(memory_format=torch.channels_last)
@@ -74,7 +74,8 @@ def evaluate(model: nn.Module, dataloader: DataLoader, device: torch.device, num
             predictions = upsampled_logits.argmax(dim=1)
             batch_miou = compute_mean_iou(predictions, labels, num_labels=num_labels, ignore_index=ignore_index)
             mean_ious.append(batch_miou)
-            val_bar.set_postfix(loss=f"{loss.item():.4f}", miou=f"{batch_miou:.4f}")
+            # val_bar.set_postfix(loss=f"{loss.item():.4f}", miou=f"{batch_miou:.4f}")
+            val_bar.set_postfix(loss=f"{loss.item():.3f}")
 
     model.train()
     avg_loss = float(sum(losses) / len(losses)) if losses else 0.0
@@ -104,8 +105,9 @@ def init_wandb(args: TrainConfig, num_labels: int) -> Optional[Run]:
     return wandb.init(
         project=args.wandb_project,
         name=datetime.now().strftime("%Y.%m.%d-%H:%M"),
+        dir=args.output_dir,
         config={
-            "model_name": args.model_name,
+            "model_name": args.pretrained_path,
             "image_size": args.image_size,
             "epochs": args.epochs,
             "batch_size": args.batch_size,
@@ -118,7 +120,6 @@ def init_wandb(args: TrainConfig, num_labels: int) -> Optional[Run]:
             "ignore_index": args.ignore_index,
             "num_labels": num_labels,
             "dataset": str(args.dataset),
-            "val_ratio": args.val_ratio,
-            "output_dir": str(args.output_dir)
-        },
+            "val_ratio": args.val_ratio
+        }
     )

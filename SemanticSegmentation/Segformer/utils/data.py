@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -13,11 +12,11 @@ from torchvision.transforms import v2
 from transformers import SegformerImageProcessor
 
 from utils.config import TrainConfig
-from utils.trainer import resolve_model_source
+# from utils.trainer import resolve_model_source
 
 
 IMG_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 def load_class_names(path: Optional[Path]) -> Optional[List[str]]:
@@ -168,13 +167,10 @@ def get_dataloaders(configs: TrainConfig) -> Tuple[DataLoader, Optional[DataLoad
     id2label = {index: name for index, name in enumerate(class_names or [f"class_{i}" for i in range(num_labels)])}
     label2id = {name: index for index, name in id2label.items()}
 
-    model_source = resolve_model_source(configs.model_name)
-    processor = SegformerImageProcessor.from_pretrained(
-        model_source,
-        do_resize=True,
-        size={"height": configs.image_size, "width": configs.image_size},
-        do_reduce_labels=False,
-    )
+    # model_source = resolve_model_source(configs.pretrained_path)
+    # processor = SegformerImageProcessor.from_pretrained(model_source, do_resize=True,
+    #                                                     size={"height": configs.image_size, "width": configs.image_size}, do_reduce_labels=False)
+    processor = SegformerImageProcessor.from_pretrained(configs.pretrained_path)
 
     total_size = len(pairs)
     if configs.val_ratio > 0 and total_size < 2:
@@ -196,19 +192,8 @@ def get_dataloaders(configs: TrainConfig) -> Tuple[DataLoader, Optional[DataLoad
         train_pairs = list(pairs)
         val_pairs = []
 
-    train_dataset = SegmentationDataset(
-        train_pairs,
-        processor,
-        image_size=configs.image_size,
-        use_augmentation=not configs.disable_augmentation,
-    )
-    val_dataset = (
-        SegmentationDataset(val_pairs, processor, image_size=configs.image_size, use_augmentation=False)
-        if val_pairs
-        else None
-    )
-
-    logger.info("dataset_split train=%d val=%d", train_size, val_size)
+    train_dataset = SegmentationDataset(train_pairs, processor, image_size=configs.image_size, use_augmentation=not configs.disable_augmentation)
+    val_dataset = SegmentationDataset(val_pairs, processor, image_size=configs.image_size, use_augmentation=False) if val_pairs else None
 
     train_loader = DataLoader(
         train_dataset,
@@ -219,25 +204,14 @@ def get_dataloaders(configs: TrainConfig) -> Tuple[DataLoader, Optional[DataLoad
         persistent_workers=configs.num_workers > 0,
         collate_fn=collate_batch,
     )
-    val_loader = (
-        DataLoader(
-            val_dataset,
-            batch_size=configs.batch_size,
-            shuffle=False,
-            num_workers=configs.num_workers,
-            pin_memory=True,
-            persistent_workers=configs.num_workers > 0,
-            collate_fn=collate_batch,
-        )
-        if val_dataset
-        else None
-    )
+    val_loader = DataLoader(val_dataset,
+                            batch_size=configs.batch_size,
+                            shuffle=False,
+                            num_workers=configs.num_workers,
+                            pin_memory=True,
+                            persistent_workers=configs.num_workers > 0,
+                            collate_fn=collate_batch) if val_dataset else None
+    
 
-    metadata: Dict[str, object] = {
-        "num_labels": num_labels,
-        "id2label": id2label,
-        "label2id": label2id,
-        "train_size": train_size,
-        "val_size": val_size,
-    }
+    metadata: Dict[str, object] = {"num_labels": num_labels, "id2label": id2label, "label2id": label2id, "train_size": train_size, "val_size": val_size}
     return train_loader, val_loader, metadata
