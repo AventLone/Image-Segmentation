@@ -12,11 +12,9 @@ from torchvision.transforms import v2
 from transformers import SegformerImageProcessor
 
 from utils.config import TrainConfig
-# from utils.trainer import resolve_model_source
 
 
 IMG_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
-# logger = logging.getLogger(__name__)
 
 
 def load_class_names(path: Optional[Path]) -> Optional[List[str]]:
@@ -74,44 +72,16 @@ def infer_num_labels(pairs: Sequence[Tuple[Path, Path]], ignore_index: int) -> i
 
 
 class SegmentationDataset(Dataset):
-    def __init__(
-        self,
-        pairs: Sequence[Tuple[Path, Path]],
-        processor: SegformerImageProcessor,
-        image_size: int,
-        use_augmentation: bool,
-    ) -> None:
+    def __init__(self, pairs: Sequence[Tuple[Path, Path]], processor: SegformerImageProcessor, image_size: int, use_augmentation: bool) -> None:
         self.pairs = list(pairs)
         self.processor = processor
         self.spatial_transform: Optional[Any] = None
         self.color_transform: Optional[Any] = None
         if use_augmentation:
-            self.spatial_transform = v2.Compose(
-                [
-                    v2.RandomHorizontalFlip(p=0.5),
-                    v2.RandomResizedCrop(
-                        size=(image_size, image_size),
-                        scale=(0.8, 1.0),
-                        ratio=(0.9, 1.1),
-                        antialias=True,
-                    ),
-                ]
-            )
-            self.color_transform = v2.Compose(
-                [
-                    v2.RandomApply(
-                        [
-                            v2.ColorJitter(
-                                brightness=0.2,
-                                contrast=0.2,
-                                saturation=0.2,
-                                hue=0.05,
-                            )
-                        ],
-                        p=0.5,
-                    )
-                ]
-            )
+            self.spatial_transform = v2.Compose([v2.RandomHorizontalFlip(p=0.5),
+                                                 v2.RandomResizedCrop(size=(image_size, image_size), scale=(0.8, 1.0), ratio=(0.9, 1.1),
+                                                                      antialias=True)])
+            self.color_transform = v2.Compose([v2.RandomApply([v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05)], p=0.5)])
 
     def __len__(self) -> int:
         return len(self.pairs)
@@ -167,9 +137,6 @@ def get_dataloaders(configs: TrainConfig) -> Tuple[DataLoader, Optional[DataLoad
     id2label = {index: name for index, name in enumerate(class_names or [f"class_{i}" for i in range(num_labels)])}
     label2id = {name: index for index, name in id2label.items()}
 
-    # model_source = resolve_model_source(configs.pretrained_path)
-    # processor = SegformerImageProcessor.from_pretrained(model_source, do_resize=True,
-    #                                                     size={"height": configs.image_size, "width": configs.image_size}, do_reduce_labels=False)
     processor = SegformerImageProcessor.from_pretrained(configs.pretrained_path)
 
     total_size = len(pairs)
@@ -195,15 +162,13 @@ def get_dataloaders(configs: TrainConfig) -> Tuple[DataLoader, Optional[DataLoad
     train_dataset = SegmentationDataset(train_pairs, processor, image_size=configs.image_size, use_augmentation=not configs.disable_augmentation)
     val_dataset = SegmentationDataset(val_pairs, processor, image_size=configs.image_size, use_augmentation=False) if val_pairs else None
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=configs.batch_size,
-        shuffle=True,
-        num_workers=configs.num_workers,
-        pin_memory=True,
-        persistent_workers=configs.num_workers > 0,
-        collate_fn=collate_batch,
-    )
+    train_loader = DataLoader(train_dataset,
+                              batch_size=configs.batch_size,
+                              shuffle=True,
+                              num_workers=configs.num_workers,
+                              pin_memory=True,
+                              persistent_workers=configs.num_workers > 0,
+                              collate_fn=collate_batch)
     val_loader = DataLoader(val_dataset,
                             batch_size=configs.batch_size,
                             shuffle=False,

@@ -1,11 +1,9 @@
 import math, logging, torch
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 import torch.nn as nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from huggingface_hub.utils import disable_progress_bars
 from transformers import SegformerForSemanticSegmentation, SegformerImageProcessor
 from transformers.utils import logging as transformers_logging
 from transformers.modeling_outputs import SemanticSegmenterOutput
@@ -16,7 +14,6 @@ from utils.training_utils import evaluate, init_wandb, require_loss, save_metada
 
 from utils.common import logging_handler
 logging.basicConfig(level=logging.INFO, handlers=[logging_handler])
-disable_progress_bars()
 transformers_logging.disable_progress_bar()
 
 # Silence ONNX optimizer chatter
