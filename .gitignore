@@ -30,3 +30,9 @@ cmake-build-release/
 *.onnx
 *.ckpt
 
+*.png
+*.jpg
+
+output/
+exported_models/
+
