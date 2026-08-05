@@ -78,10 +78,17 @@ class SegmentationDataset(Dataset):
         self.spatial_transform: Optional[Any] = None
         self.color_transform: Optional[Any] = None
         if use_augmentation:
-            self.spatial_transform = v2.Compose([v2.RandomHorizontalFlip(p=0.5),
-                                                 v2.RandomResizedCrop(size=(image_size, image_size), scale=(0.8, 1.0), ratio=(0.9, 1.1),
-                                                                      antialias=True)])
-            self.color_transform = v2.Compose([v2.RandomApply([v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05)], p=0.5)])
+            self.spatial_transform = v2.Compose([v2.RandomHorizontalFlip(p=0.7), v2.RandomVerticalFlip(p=0.35), v2.RandomRotation(degrees=30),
+                v2.RandomAffine(degrees=0, translate=(0.15, 0.15), scale=(0.8, 1.25), shear=(-12, 12)),
+                v2.RandomPerspective(distortion_scale=0.35, p=0.35),
+                v2.RandomResizedCrop(size=(image_size, image_size), scale=(0.45, 1.0), ratio=(0.6, 1.6), antialias=True)
+            ])
+            self.color_transform = v2.Compose([
+                v2.RandomApply([v2.ColorJitter(brightness=0.55, contrast=0.55, saturation=0.55, hue=0.15)], p=0.8),
+                v2.RandomGrayscale(p=0.2), v2.RandomAutocontrast(p=0.35), v2.RandomEqualize(p=0.2),
+                v2.RandomApply([v2.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0))], p=0.25),
+                v2.RandomAdjustSharpness(sharpness_factor=1.8, p=0.25)
+            ])
 
     def __len__(self) -> int:
         return len(self.pairs)

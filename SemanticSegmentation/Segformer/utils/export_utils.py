@@ -18,5 +18,5 @@ def export_onnx_model(model: SegformerForSemanticSegmentation, output_path: Path
     wrapper.eval()
     dummy_input = torch.randn(1, 3, image_size, image_size, device=device)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.onnx.export(wrapper, dummy_input, output_path, input_names=["pixel_values"], output_names=["logits"], 
+    torch.onnx.export(wrapper, dummy_input, output_path, input_names=["input"], output_names=["logits"],
                       opset_version=21, verbose=False)
