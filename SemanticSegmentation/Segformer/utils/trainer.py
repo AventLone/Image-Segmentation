@@ -100,7 +100,7 @@ class Trainer:
         running_loss = 0.0
 
         train_bar = tqdm(self._train_loader, total=len(self._train_loader), desc=f"Train {epoch + 1}/{epochs}", 
-                         leave=True, dynamic_ncols=True, unit="batches")
+                         leave=False, dynamic_ncols=True, unit="batches")
         for step, batch in enumerate(train_bar, start=1):
             pixel_values = batch.pixel_values.to(Trainer.DEVICE, non_blocking=True).contiguous(memory_format=torch.channels_last)
             labels = batch.labels.to(Trainer.DEVICE, non_blocking=True)
@@ -172,7 +172,7 @@ class Trainer:
         else:
             export_model = self._model
 
-        onnx_path = self._output_dir / "model.onnx"
+        onnx_path = self._output_dir / "segformer.onnx"
         export_onnx_model(export_model, onnx_path, image_size=self._configs.image_size, device=Trainer.DEVICE)
         logging.info("saved_onnx=%s", onnx_path)
 

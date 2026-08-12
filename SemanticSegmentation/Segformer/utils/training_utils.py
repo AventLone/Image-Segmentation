@@ -54,7 +54,7 @@ def evaluate(model: nn.Module, dataloader: DataLoader, device: torch.device, num
     losses: List[float] = []
     mean_ious: List[float] = []
 
-    val_bar = tqdm(dataloader, total=len(dataloader), desc="Validation", unit="batches", leave=True, dynamic_ncols=True)
+    val_bar = tqdm(dataloader, total=len(dataloader), desc="Validation", unit="batches", leave=False, dynamic_ncols=True)
     with torch.inference_mode():
         for batch in val_bar:
             pixel_values = batch.pixel_values.to(device, non_blocking=True).contiguous(memory_format=torch.channels_last)

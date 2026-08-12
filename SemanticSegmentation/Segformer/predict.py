@@ -7,12 +7,12 @@ import torch.nn.functional as F
 from typing import Optional
 
 # feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b5-finetuned-ade-512-512")
-processor = SegformerImageProcessor.from_pretrained("./outputs/2026.07.24/best_model")
-model = SegformerForSemanticSegmentation.from_pretrained("./outputs/2026.07.24/best_model")
+processor = SegformerImageProcessor.from_pretrained("./outputs/2026.08.05/best_model")
+model = SegformerForSemanticSegmentation.from_pretrained("./outputs/2026.08.05/best_model")
 
 # url = "http://images.cocodataset.org/val2017/000000039769.jpg"
 # image = Image.open(requests.get(url, stream=True).raw)
-image = Image.open("/media/avent/DATA/generated_data/train/2026.07.23-14:28/rgb/0018.png").convert("RGB")
+image = Image.open("/media/linde/AventSSD/test/image3.png").convert("RGB")
 
 # inputs = processor(images=image, return_tensors="pt")
 inputs = processor(

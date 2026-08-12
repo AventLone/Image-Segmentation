@@ -7,18 +7,18 @@ from typing import Optional
 @dataclass
 class TrainConfig:
     # Set this in script before running, for example:
-    dataset = Path("/media/avent/DATA/generated_data/train/2026.07.23-14:28")
+    dataset = Path("/home/linde/Desktop/Datasets/SemanticSegmentation/2026.07.28-14_16")
     val_ratio: float = 0.1
-    pretrained_path: str = "./pretrained/segformer-b4-finetuned-ade-512-512"
+    pretrained_path: str = "./outputs/2026.08.05/best_model"
     output_dir: Path = Path(f"outputs/{datetime.now().strftime('%Y.%m.%d')}")
     classes: Optional[Path] = None
     image_size: int = 512
     epochs: int = 100
-    batch_size: int = 8
-    learning_rate: float = 6e-4
+    batch_size: int = 12
+    learning_rate: float = 1e-3
     weight_decay: float = 0.01
     warmup_ratio: float = 0.1
-    num_workers: int = 16
+    num_workers: int = 12
     disable_augmentation: bool = False
     amp_dtype: str = "bf16"
     seed: int = 42
